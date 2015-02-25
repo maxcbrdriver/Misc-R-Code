@@ -68,6 +68,14 @@ library(googleVis)
 # Plotly
 devtools::install_github("ropensci/plotly")
 
+# Documents
+#install.packages(c("shiny", "shinyFiles", "rmarkdown"))
+devtools::install_github("rstudio/shinybootstrap2")
+devtools::install_github("trestletech/shinyAce")
+devtools::install_github("ebailey78/shinyBS")
+devtools::install_github("swarm-lab/editR")
+library(editR)
+
 # String Manipulation
 #install_github('Rexamine/stringi')
 library(stringi)  # Currently using CRAN version
@@ -91,6 +99,7 @@ library(RMySQL)
 library(magrittr)
 
 # Lambda
+library(lambda.r)
 
 # Parallel Computing
 library(snow)
