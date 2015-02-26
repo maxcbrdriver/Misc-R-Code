@@ -11,8 +11,10 @@ library(httr)
 set_config( config( ssl.verifypeer = 0L ) )   # Ignores the SSL check
 Sys.setenv(TZ='GMT')
 
-fb.email <- ""
-fb.pwd <- ""
+setwd("C://GitHub//Misc-R-Code/")
+source("Secure v1.R")
+#fb.email <- ""
+#fb.pwd <- ""
 
 cookie <- login(email=fb.email, password=fb.pwd)
 
