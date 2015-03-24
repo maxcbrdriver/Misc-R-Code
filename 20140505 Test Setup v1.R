@@ -67,6 +67,8 @@ library(rCharts)
 library(googleVis)
 # Plotly
 devtools::install_github("ropensci/plotly")
+# Waffle Plots
+devtools::install_github("hrbrmstr/waffle")
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
@@ -103,7 +105,7 @@ library(lambda.r)
 
 # Parallel Computing
 library(snow)
-# Revobase was previously installed byt default, now apparently left as a zip in the /etc directory
+# Revobase was previously installed by default, now apparently left as a zip in the /etc directory
 install.packages("C:/R/RRO-3.1.2/etc/Revobase_7.3.0.zip")
 library(Revobase) # Intel MKL thread control available in RRO only
 getMKLthreads()
