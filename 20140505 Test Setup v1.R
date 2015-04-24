@@ -46,6 +46,7 @@ library(data.table)
 # http://www.rforge.net/fasttime/files/
 #install.packages("C:/R/Downloaded/fasttime_1.0-0.tar.gz", repos = NULL, type = "source")
 library(fasttime)   # fastPOSIXct assumes an input format of "%Y/%m/%d %H:%M/%S", no way to change it
+devtools::install_github("hadley/RcppDateTime")
 
 # Data Manipulation
 #library(reshape)
@@ -86,6 +87,11 @@ library(stringi)  # Currently using CRAN version
 # Excel
 library(XLConnect)
 library(xlsx)
+devtools::install_github("hadley/readxl")
+library(readxl)
+
+# Misc File Reads
+devtools::install_github("hadley/readr")
 
 # DB
 library(RODBC)
@@ -94,6 +100,9 @@ library(RSQLite)
 library(RSQLite.extfuns)
 .SQL92Keywords   # SQL Keywords
 library(RMySQL)
+
+# XML
+library(xml2)
 
 # Operation Piping
 # R magrittr (https://github.com/smbache/magrittr)
@@ -119,6 +128,10 @@ library(partools)
 #devtools::install_github("hadley/dplyr", build_vignettes=F)
 library(dplyr)
 
+# R Pivot Table
+devtools::install_github("ramnathv/htmlwidgets")
+devtools::install_github("smartinsightsfromdata/rpivotTable")
+
 # Rmetrics
 #source("http://www.rmetrics.org/Rmetrics.R")
 #install.Rmetrics()
@@ -133,6 +146,9 @@ devtools::install_github("Rcpp11/Rcpp11")
 devtools::install_github("Rcpp11/attributes") # Failed first few times, reloaded devtools, then works, why?
 #library(Rcpp11)
 #library(attributes)
+
+# R6 (OO System)
+library(R6)
 
 # Timing
 library(microbenchmark)
@@ -153,6 +169,7 @@ library(GenomicRanges)
 
 # ----- Settings -----
 search()
+devtools::session_info()
 
 # Timezone
 Sys.timezone()
@@ -384,3 +401,15 @@ layout <- list(
 )
 response <- py$plotly(data, kwargs=list(layout=layout, filename="simple-inset", fileopt="overwrite"))
 url <- response$url
+
+
+library(R6)
+
+env.tree.f <- function(x) {
+  par.env <- parent.env(x)
+  print(attr(par.env, "name"))
+  
+  if(!identical(par.env, emptyenv())) {
+    env.tree.f(par.env)
+  }
+}
