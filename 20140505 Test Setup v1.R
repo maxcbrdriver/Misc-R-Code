@@ -4,13 +4,17 @@
 # ----- Version -----
 R.version
 getRversion()
+sessionInfo()
+packageVersion("stats")
 cat("\014")   # Same as 'Ctrl-L', clears Console
 
 # ----- Library -----
 # Default library specified in Windows Environment variable R_LIBS_USER
 .libPaths()
-#.libPaths("C://R/Libraries/RRO_3.1.2")   # Default, specified in R_LIBS_USER
-#.libPaths("C://R/Libraries//R_2.15.3")   # Replaces default
+#.libPaths("C://R/Libraries//RRO_3.2.1")  # Default
+#.libPaths("C://R/Libraries//RRO_3.2.0")  # 
+#.libPaths("C://R/Libraries//R_3.2.0")    # 
+#.libPaths("C://R/Libraries//R_2.15.3")   #
 .Library
 .Library.site
 
@@ -29,7 +33,7 @@ getOption('repos')
 #   error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
 library(RCurl)
 library(httr)
-set_config( config( ssl.verifypeer = 0L ) )   # Ignores the SSL check
+set_config( config( ssl_verifypeer = 0L ) )   # Ignores the SSL check; Was once 'ssl.verifypeer'
 # For projects pulled down, insert 'sslVerify = false' into 'gitconfig' file
 #https://github.com/hadley/devtools
 library(devtools)
@@ -46,7 +50,7 @@ library(data.table)
 # http://www.rforge.net/fasttime/files/
 #install.packages("C:/R/Downloaded/fasttime_1.0-0.tar.gz", repos = NULL, type = "source")
 library(fasttime)   # fastPOSIXct assumes an input format of "%Y/%m/%d %H:%M/%S", no way to change it
-devtools::install_github("hadley/RcppDateTime")
+#devtools::install_github("hadley/RcppDateTime")
 
 # Data Manipulation
 #library(reshape)
@@ -65,11 +69,20 @@ devtools::install_github("rstudio/ggvis", build_vignettes = FALSE)
 # R Charts
 devtools::install_github("ramnathv/rCharts")
 library(rCharts)
+# Google Vis
 library(googleVis)
 # Plotly
 devtools::install_github("ropensci/plotly")
+library(plotly)
 # Waffle Plots
 devtools::install_github("hrbrmstr/waffle")
+library(waffle)
+# DiaGraphs
+devtools::install_github('rich-iannone/DiagrammeR')
+library(DiagrammeR)
+# Network Graphs
+library(networkD3)
+library(igraph)
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
@@ -102,6 +115,7 @@ library(RSQLite.extfuns)
 library(RMySQL)
 
 # XML
+devtools::install_github("hadley/xml2")
 library(xml2)
 
 # Operation Piping
@@ -115,13 +129,20 @@ library(lambda.r)
 # Parallel Computing
 library(snow)
 # Revobase was previously installed by default, now apparently left as a zip in the /etc directory
-install.packages("C:/R/RRO-3.1.2/etc/Revobase_7.3.0.zip")
-library(Revobase) # Intel MKL thread control available in RRO only
+# Parallel support now in a separate install?
+# install.packages("C:/R/RRO-3.1.2/etc/Revobase_7.3.0.zip")
+library(RevoUtilsMath) # Intel MKL thread control available in RRO only
 getMKLthreads()
 #setMKLthreads(2)
 # Parallel Tools
 #install.packages("C:/R Projects/Downloaded/partools_1.0.1.tar.gz", repos = NULL, type = "source")
 library(partools)
+install.packages("foreach")
+install.packages("iterators")
+install.packages("doMC")
+install.packages("doParallel")
+install.packages("doSNOW")
+
 
 # Dplyr (https://github.com/hadley/dplyr)
 #devtools::install_github("hadley/lazyeval")
@@ -143,7 +164,7 @@ devtools::install_github("smartinsightsfromdata/rpivotTable")
 # Rcpp11
 # https://github.com/Rcpp11/Rcpp11
 devtools::install_github("Rcpp11/Rcpp11")
-devtools::install_github("Rcpp11/attributes") # Failed first few times, reloaded devtools, then works, why?
+devtools::install_github("Rcpp11/attributes")
 #library(Rcpp11)
 #library(attributes)
 
@@ -155,8 +176,8 @@ library(microbenchmark)
 
 # GenomicRanges
 # Run R As Administrator ...
-#source("http://bioconductor.org/biocLite.R")
-#biocLite("GenomicRanges")
+source("http://bioconductor.org/biocLite.R")
+biocLite("GenomicRanges")
 library(GenomicRanges)
 
 # SVG
@@ -413,3 +434,23 @@ env.tree.f <- function(x) {
     env.tree.f(par.env)
   }
 }
+
+library(DiagrammeR)
+grViz("boxes.dot")
+
+
+library(data.table)
+library(magrittr)
+library(stringi)
+getwd()
+setwd("C:/Temp/ZEMA/2015_05_05b/FH/FH/")
+lf <- list.files()
+lf.dt <- as.data.table(lf)
+setnames(lf.dt, "lf", "File_Name")
+lf.dt[,`:=`(c('Run_Type', 'ProfileNameSC', 'ProviderSC', 'TariffSC', 'RunTypeSC',
+              'RF_Cmmdty', 'RF_Und_Src', 'RF_Mod_1', 'RF_Mod_2', 'RF_Mod_3', 'RF_Basis'),
+            as.list(stri_split_regex(File_Name, "_|\\.")[[1]][c(1,2,3,4,5,7,8,9,10,11,12)])), by=File_Name]
+lf.dt[,`:=`('AsOf', as.IDate(stri_match_all_regex(File_Name, "(\\d{2}-\\d{2}-\\d{4})\\.csv$")[[1]][2], "%m-%d-%Y", tz='GMT')), by=File_Name]
+lf.dt %>% str
+      
+      
