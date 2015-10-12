@@ -11,7 +11,8 @@ cat("\014")   # Same as 'Ctrl-L', clears Console
 # ----- Library -----
 # Default library specified in Windows Environment variable R_LIBS_USER
 .libPaths()
-#.libPaths("C://R/Libraries//RRO_3.2.1")  # Default
+#.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
+#.libPaths("C://R/Libraries//RRO_3.2.1")  #
 #.libPaths("C://R/Libraries//RRO_3.2.0")  # 
 #.libPaths("C://R/Libraries//R_3.2.0")    # 
 #.libPaths("C://R/Libraries//R_2.15.3")   #
@@ -83,6 +84,8 @@ library(DiagrammeR)
 # Network Graphs
 library(networkD3)
 library(igraph)
+# Rattle
+devtools::install_bitbucket("kayontoga/rattle")
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
@@ -123,8 +126,10 @@ library(xml2)
 #install_github("smbache/magrittr")
 library(magrittr)
 
-# Lambda
+# Functional Programming Tools
 library(lambda.r)
+library(purrr)
+#devtools::install_github("hadley/purrr")
 
 # Parallel Computing
 library(snow)
@@ -135,13 +140,16 @@ library(RevoUtilsMath) # Intel MKL thread control available in RRO only
 getMKLthreads()
 #setMKLthreads(2)
 # Parallel Tools
-#install.packages("C:/R Projects/Downloaded/partools_1.0.1.tar.gz", repos = NULL, type = "source")
+devtools::install_github("matloff/partools")
 library(partools)
 install.packages("foreach")
 install.packages("iterators")
 install.packages("doMC")
 install.packages("doParallel")
 install.packages("doSNOW")
+
+# Hadoop
+devtools::install_github("RevolutionAnalytics/RHadoop")
 
 
 # Dplyr (https://github.com/hadley/dplyr)
@@ -185,8 +193,8 @@ library(GenomicRanges)
 #library(SVGAnnotation)
 
 # Rmetrics
-#source("http://www.rmetrics.org/Rmetrics.R")
-#install.Rmetrics()
+source("http://www.rmetrics.org/Rmetrics.R")
+install.Rmetrics()
 
 # ----- Settings -----
 search()
@@ -347,14 +355,20 @@ pformula.dt %>% setkey(PFORMULA_IDX)
 prc.all.dt <- pformula.dt[prc.crv.dt]
 prc.all.dt %>% str
 
-t <- lapply(c("pcurve.dt", "pricedtl.dt", "pformula.dt", "prc.all.dt"), l(x ~ x %>% get %T>% (nrow %,% print)))
+t <- lapply(c("pcurve.dt", "pricedtl.dt", "pformula.dt", "prc.all.dt"), . %>% get %T>%  (. %>% nrow %>% print))
 
 prc.all.dt %>% setkey("PCURVE_PSET", "PCURVE_MKT", "PCURVE_COMP")
 prc.all.dt[J("MARKET", "PJMDAY", "MANIT2"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
 prc.all.dt[J("MARKET", "PJMDAY", "OCCOQ2"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
 prc.all.dt[J("MARKET", "PJMDAY", "BRNSWK"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
 prc.all.dt[J("MARKET", "PJMDAY", "DOMZON"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+prc.all.dt[J("MARKET", "NEPOOL", "UNTIL"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
 prc.all.dt[J("ONPK", "NEPOOL", "STOWE"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+prc.all.dt[J("MARKET", "NEPOOL", "CMEEC"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+prc.all.dt[J("ONPK", "NEPOOL", "SUEZ"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+prc.all.dt[J("ONPK", "NEPOOL", "CMEEC"), list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+prc.all.dt[,list(PFORMULA_NAME, PFORMULA_DSC, PFORMULA_TEXT)]
+
 
 prc.mkts.dt <- prc.all.dt[,list(GRP=.GRP), keyby=list(PCURVE_MKT, PCURVE_COMP, PCURVE_PSET)]
 prc.mkts.dt[,GRP:=NULL]
@@ -453,4 +467,27 @@ lf.dt[,`:=`(c('Run_Type', 'ProfileNameSC', 'ProviderSC', 'TariffSC', 'RunTypeSC'
 lf.dt[,`:=`('AsOf', as.IDate(stri_match_all_regex(File_Name, "(\\d{2}-\\d{2}-\\d{4})\\.csv$")[[1]][2], "%m-%d-%Y", tz='GMT')), by=File_Name]
 lf.dt %>% str
       
-      
+
+# Test GBM
+# Illustrates that the price level itself directly affects the GMaR (in this case using a single unit long position)
+library(data.table)
+library(magrittr)
+library(string)
+library(ggplot2)
+
+sigma <- 0.5
+t <- 1
+t.dt <- data.table(Sim=1:10000)
+t.dt[,`:=`(as.character(seq(1,100, 0.5)), as.list(seq(1,100,0.5)))]
+t.2.dt <- melt(t.dt, id.vars = "Sim", variable.name = "Stress", variable.factor = F, value.name = "Prc@t0")
+t.2.dt[, `Prc@t1`:=`Prc@t0`*exp(-0.5*(sigma)^2*t+(sigma)*(rnorm(.N))*sqrt(t))]
+t.2.dt[,PrcDiff:=`Prc@t1`-`Prc@t0`]
+t.3.dt <- t.2.dt[,list(`Prc@t1`=sort(`Prc@t1`) %>% `[`(floor(.N*0.05))), by=list(Stress, `Prc@t0`)]
+t.3.dt[,GMaR:=`Prc@t1`-`Prc@t0`]
+
+t.3.dt[,`:=`(`Chg%`=GMaR/`Prc@t0`, `ChgLn%`=log(`Prc@t1`/`Prc@t0`))]
+
+a <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=GMaR)) + geom_point() + geom_line(); a
+b <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=`Chg%`)) + geom_point() + geom_line() + coord_cartesian(ylim=c(-0.9, 0)); b
+c <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=`ChgLn%`)) + geom_point() + geom_line() + coord_cartesian(ylim=c(-1, 0)); c
+
