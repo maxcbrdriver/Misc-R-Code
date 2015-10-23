@@ -86,6 +86,8 @@ library(networkD3)
 library(igraph)
 # Rattle
 devtools::install_bitbucket("kayontoga/rattle")
+# Slidify
+devtools::install_github("ramnathv/slidify")
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
@@ -147,6 +149,8 @@ install.packages("iterators")
 install.packages("doMC")
 install.packages("doParallel")
 install.packages("doSNOW")
+
+devtools::install_github("nathanvan/parallelsugar")
 
 # Hadoop
 devtools::install_github("RevolutionAnalytics/RHadoop")
