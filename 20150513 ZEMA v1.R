@@ -86,9 +86,9 @@ library(magrittr)
 library(stringi)
 library(ggplot2)
 
-as.IDate.f <- function(date.ch) {
-  as.IDate(date.ch, "%m/%d/%Y", tz='GMT')
-}
+as.IDate.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz='GMT')
+as.IDate.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz='GMT')
+as.IDate.3.f <- . %>% as.IDate(., "%Y-%m-%d", tz='GMT')
 
 # DST
 dst.dt <- fread("C:/Temp/DST Start End v2.csv", header=T)
@@ -100,14 +100,14 @@ setkey(dst.dt, "Date")
 
 
 setwd("C:/")
-base.dir <- c("C:/Temp/ZEMA/20150714b/")
+base.dir <- c("C:/Temp/ZEMA/20150810a/")
 #sub.dirs <- c("Power 02 Spot NE", "Power 02 Spot NY", "Power 02 Spot PJM")
 #sub.dirs <- c("20150618a/PJM West Monthly", "20150622a/PJM West Daily", "20150525a/20150521")
-sub.dirs <- "Power 02 Spot PJM/PJM_AECO"
-out.dir <- stri_paste(base.dir, "Upload/")
+sub.dirs <- c("Upload")
+out.dir <- stri_paste(base.dir, "Upload2/")
 
 full.dirs <- sapply(sub.dirs, . %>% stri_paste(base.dir, ., sep=""))
-files.dt <- lapply(full.dirs, function(x) data.table(File.Name=list.files(path=x, full.names=T, recursive = T))) %>% 
+files.dt <- lapply(full.dirs, function(x) data.table(File.Name=list.files(path=x, full.names=T, recursive = F, include.dirs=F))) %>% 
               rbindlist(use.names=T)
 
 # Spot or Forward?
@@ -193,52 +193,81 @@ read.spot.pwr.2.prc.f <- function(file.x) {
   require(data.table)
   require(magrittr)
   
+  # Run Date
+  RunDate.IDt <- stri_match_all_regex(file.x, "_(\\d{2}-\\d{2}-\\d{4}).csv")[[1]][2] %>% 
+                 as.IDate.2.f
+  
   # Import
-  a.dt <- fread(file.x, header=F, skip=1)
+  a.dt <- read.csv(file.x, sep=",", header=F, skip=1L, colClasses=c(rep("character", 2), rep("numeric", 50))) %>%
+          as.data.table
   
-  # Assign Column Names
-  setnames(a.dt, c("Date", "RiskFactor", 1:(length(a.dt)-2)))
-  a.dt[,':='(seq(4, length(a.dt), 2), NULL)]
-  setnames(a.dt, c("Date", "RiskFactor", 1:(length(a.dt)-2)))
+  # Remove Duplicate Column
+  a.dt[,':='(seq(4, 52, 2), NULL)]
+  setnames(a.dt, c("Date", "RiskFactor", 1:25))
   
+  # Add Date Column & Key By
   a.dt[,Date.Dt:=as.IDate.f(Date)]
   a.dt[,Date:=NULL]
   setnames(a.dt, "Date.Dt", "Date")
-  setcolorder(a.dt, c(length(a.dt), 1:(length(a.dt)-1)))
-  
+  setcolorder(a.dt, c(27, 1:26))
   setkey(a.dt, Date)
-  
+ 
+  # Adjust DST Dates
   b.dt <- dst.dt[a.dt, nomatch=NA]
   setkey(b.dt, "DST Type")
-  b.dt[J("Spring"), `3`:= mean(`2`, `4`), nomatch=0]
-  b.dt[J("Fall"), `3`:= mean(`3`, `4`), nomatch=0]
-  x <- b.dt[J("Fall"), 8:28, with=F] %>% as.numeric
-  b.dt[J("Fall"), ':='(7:27, as.list(x))]
-  b.dt[,`25`:=NULL]
+  b.dt[J("Spring"), `3`:= mean(c(`2`, `4`)), nomatch=0]
+  b.dt[J("Fall"), `2`:= mean(c(`2`, `3`)), nomatch=0]
+  x <- b.dt[J("Fall"), 7:28, with=F] %>% as.numeric     # \ Shift HE4-HE25 left 1 hour to HE3-HE24
+  b.dt[J("Fall"), ':='(6:27, as.list(x))]               # /
+  b.dt[,':='(`DST Type`=NULL, `25`=NULL)]
+
+  # Add Run Date
+  b.dt[,"Run Date":=RunDate.IDt]
+  setcolorder(b.dt, c(27, 1:26))
   
-  
-  
-  b.dt <- melt.data.table(a.dt, id.vars=c("Date", "RiskFactor"), variable.name="HE", value.name="Price", variable.factor=F)
-  b.dt[,':='(HE.num=(as.numeric(HE)+1)/2, Date.Dt=as.IDate.f(Date))]
-  b.dt[,HE:=NULL]
-  setnames(b.dt, "HE.num", "HE")
-  
-  b.dt %>% setkey(HE)
-  c.dt <- b.dt[J(1:24)]
-  c.dt %>% setorder(RiskFactor, Date.Dt, HE)
-  
-  c.dt %>% setkey(Price)
-  d.dt <- c.dt[!J(-999)]
-  
-  
-  setkey(x.dt, `1`)
-  y.dt <- x.dt[!J(-999999)]
-  y.dt
+  # Return
+  b.dt
 }
 
-proc.spot.pwr.2.fle.grp.f <- function(file.grp, by.l) {
-  in.dt <- lapply(file.grp, read)
+proc.spot.pwr.2.file.grp.f <- function(file.grp, by.l) {
+  require(data.table)
+  require(magrittr)
   
+  # Import Files
+  in.dt <- lapply(file.grp, read.spot.pwr.2.prc.f) %>% rbindlist(use.names=T)
+  
+  # Calculate Filter
+  setkey(in.dt, "Run Date", Date)
+  a.dt <- in.dt[, list('Run Date'=max(`Run Date`)), by=Date]
+  setkey(a.dt, "Run Date", Date)
+  
+  # Execute Filter
+  b.dt <- in.dt[a.dt]
+  b.dt[,"Run Date":=NULL]
+  setkey(b.dt, "Date")
+  
+  # Remove All Dates with No Data (-999999)
+  #b.dt[,Keep:=ifelse(`1`==`2` & `2`==`3` & `3`==`4` & `4`==`5` & `5`==`6` & `6`==`7` & 
+  #                     `7`==`8` & `8`==`9` & `9`==`10` & `10`==`11` & `11`==`12` & `12`==`13` &
+  #                     `13`==`14` & `14`==`15` & `15`==`16` & `16`==`17` & `17`==`18` & `18`==`19` &
+  #                     `19`==`20` & `20`==`21` & `21`==`22` & `22`==`23` & `23`==`24` & `24`==-999999,
+  #                   F,T)]
+  c.dt <- melt(b.dt, id.vars = c("Date", "RiskFactor"), variable.name = "HE", variable.factor = F, value.name = "Price")
+  d.dt <- c.dt[,Keep:=sum(Price==-999999)!=24, keyby="Date"]
+  setkey(d.dt, Keep)
+  e.dt <- d.dt[J(T)]
+  f.dt <- dcast(e.dt, Date + RiskFactor ~ HE, value.var = "Price")
+  setcolorder(f.dt, c("Date", "RiskFactor", 1:24))
+  
+  # Get Count Info for Debug
+  max.cnt <- f.dt[,.N, by=Date][,max(N)]
+  
+  # Output
+  setcolorder(f.dt, c("Date", "RiskFactor", 1:24))
+  write.csv(f.dt, stri_paste(out.dir, "History_Spot_", by.l$RF, ".csv", sep=""), quote=F, row.names=F)
+  
+  # Return Debug Info
+  max.cnt
 }
 
 
@@ -246,8 +275,23 @@ files.dt %>% setkey("Type")
 frwd.dt <- files.dt[J("ForwardQuotes"),proc.frwd.file.grp.f(File.Name, .BY), by=RF]
 spot.dt <- files.dt[J("History"),proc.spot.file.grp.f(File.Name, .BY), by=RF]
 
+spot.dt <- files.dt[J("History"), proc.spot.pwr.2.file.grp.f(File.Name, .BY), by=RF]
 
-spot.dt <- files.dt[J("History"), proc.spot.file.grp.2.f(File.Name, QDate, .BY), by=RF]
+
+
+read.spot.gas.prc.f <- function(file.x) {
+  
+  # Run Date
+  RunDate.Dt <- stri_match_all_regex(file.x, "_(\\d{2}-\\d{2}-\\d{4}).csv")[[1]][2] %>% as.IDate.2.f
+  
+  # Import
+  prc.dt <- fread(file.x, header=T)
+  prc.dt[,RunDate.Dt:=RunDate.Dt]
+  
+  prc.dt
+}
+
+
 
 
 
@@ -329,4 +373,183 @@ a.dt[J(as.IDate.f("1/25/2010"),T)]
 a.dt[J(as.IDate.f("8/1/2011"),T)]
 a.dt[J(as.IDate.f("8/1/2012"),T)]
 a.dt[J(as.IDate.f("6/10/2015"),T)]
+
+
+
+t.2 <- readr::read_csv(file.x, col_types=list(Date=col_character(),RiskFactor=col_character(), `1`=col_character(),`2`=col_character(),`3`=col_character(),`4`=col_character(),`5`=col_character(),`6`=col_character(),`7`=col_character(),`8`=col_character(),`9`=col_character(),`10`=col_character(),`11`=col_character(),`12`=col_character(),`13`=col_character(),`14`=col_character(),`15`=col_character(),`16`=col_character(),`17`=col_character(),`18`=col_character(),`19`=col_character(),`20`=col_character(),`21`=col_character(),`22`=col_character(),`23`=col_character(),`24`=col_character(),`25`=col_character(),`26`=col_character(),`27`=col_character(),`28`=col_character(),`29`=col_character(),`30`=col_character(),`31`=col_character(),`32`=col_character(),`33`=col_character(),`34`=col_character(),`35`=col_character(),`36`=col_character(),`37`=col_character(),`38`=col_character(),`39`=col_character(),`40`=col_character(),`41`=col_character(),`42`=col_character(),`43`=col_character(),`44`=col_character(),`45`=col_character(),`46`=col_character(),`47`=col_character(),`48`=col_character(),`49`=col_character(),`50`=col_character()), skip=1)
+t.2 <- readr::read_csv(file.x, col_types=list(col_character()=1:52), skip=1)
+t.2 <- read.csv(file.x, header=F, sep=",", skip=1, colClasses=c("character"))
+t.2 <- read.csv(file.x, header=F, sep=",", skip=1, colClasses=c("character", "character", rep("numeric", 50)))
+t.2 <- read.csv(file.x, header=F, sep=",", skip=1, colClasses=c(Date="character", RiskFactor="character", rep("numeric", 50)))
+
+t.3 <- read.csv(file.y, header=F, sep=",", skip=1, colClasses=c("character"))
+
+t.3 <- fread(file.x, sep=",", header=F, skip=1L, colClasses = list(character=1:54))
+t.4 <- readr::read_csv(file.x, col_names=F, skip = 1, na=c("0.00"))
+
+
+# Data checks
+setwd("C:/Temp/ZEMA/20150713a/Upload")
+getwd()
+a.dt <- fread("ForwardQuotes_Gas_GD_Sum_1_M_IF_Transco_Zn_6_NY.csv", header=T)
+b.dt <- fread("ForwardQuotes_Gas_GD_Sum_1_S_IF_Transco_Zn_3.csv", header=T)
+a.dt[,QuoteDt.Dt:=as.IDate.f(QuoteDate)]
+b.dt[,QuoteDt.Dt:=as.IDate.f(QuoteDate)]
+a.dt %>% setkey(QuoteDt.Dt)
+b.dt %>% setkey(QuoteDt.Dt)
+
+a.dt[,.N] - b.dt[,.N]
+
+b.dt[,range(QuoteDt.Dt)]
+b.dt[,length(unique(QuoteDt.Dt))]
+
+a.QDt.dt <- a.dt[,unique(QuoteDt.Dt)] %>% as.data.table %>% setnames("QuoteDt.Dt") %>% setkey(QuoteDt.Dt)
+b.QDt.dt <- b.dt[,unique(QuoteDt.Dt)] %>% as.data.table %>% setnames("QuoteDt.Dt") %>% setkey(QuoteDt.Dt)
+
+a.QDt.dt[!b.QDt.dt]
+b.QDt.dt[!a.QDt.dt]
+
+QDt.inter <- intersect(a.dt[,unique(QuoteDate)], b.dt[,unique(QuoteDate)])
+QDt.inter.Dt <- QDt.inter %>% as.IDate.f
+QDt.diff.1 <- setdiff(a.dt[,unique(QuoteDate)], b.dt[,unique(QuoteDate)])
+QDt.diff.1.Dt <- QDt.diff.1 %>% as.IDate.f %T>% print
+QDt.diff.2 <- setdiff(b.dt[,unique(QuoteDate)], a.dt[,unique(QuoteDate)])
+QDt.diff.2.Dt <- QDt.diff.2 %>% as.IDate.f %T>% print
+
+QDt.int.diff.1.1 <- setdiff(QDt.inter, a.dt[,unique(QuoteDate)]) %>% as.IDate.f %T>% print
+QDt.int.diff.1.2 <- setdiff(a.dt[,unique(QuoteDate)], QDt.inter) %>% as.IDate.f %T>% print
+
+QDt.int.diff.2.1 <- setdiff(QDt.inter, b.dt[,unique(QuoteDate)]) %>% as.IDate.f %T>% print
+QDt.int.diff.2.2 <- setdiff(b.dt[,unique(QuoteDate)], QDt.inter) %>% as.IDate.f %T>% print
+
+QDt.inter.Dt.dt <- QDt.inter.Dt %>% as.data.table %>% setnames("QuoteDt.Dt") %>% setkey(QuoteDt.Dt)
+a.2.dt <- a.dt[QDt.inter.Dt.dt, nomatch=0]
+b.2.dt <- b.dt[QDt.inter.Dt.dt, nomatch=0]
+
+a.2.dt[,.N] - b.2.dt[,.N]
+
+a.2.dt[,RiskFactor:=NULL]
+b.2.dt[,RiskFactor:=NULL]
+identical(a.2.dt, b.2.dt)
+
+# ------------------------------------------------------------------------------------------------------------------------
+# File Sorting
+# ------------------------------------------------------------------------------------------------------------------------
+library(lubridate)
+library(data.table)
+library(stringi)
+library(magrittr)
+library(tools)
+
+# ZEMA files have tz="US/Pacific", but we want to convert to EST
+Sys.setenv(TZ='America/New_York')
+
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
+
+as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
+as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
+
+# Set Source Directory
+base.dir <- "W:/ZEMA/Forward/Archive"
+setwd(base.dir)
+
+dirs.dt <- data.table(Dirs=list.dirs())
+
+files.dt <- data.table(File.Name=list.files(pattern="*.csv", recursive=FALSE))
+files.dt[, ':='(Mod=file.mtime(File.Name), MD5Sum=md5sum(File.Name))]
+
+# ----- Spot or Forward? -----
+files.dt[,Type:=stri_match_first_regex(File.Name, "([^/_]*)[^/]*$")[,2]]
+setkey(files.dt, Type)
+
+# File Name Decomposition
+files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
+
+# Forward
+files.dt[J("ForwardQuotes"),
+         ':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+              stri_match_all_regex(File.Name, 
+                                   "ForwardQuotes_([^_]*)_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:11] %>% as.list),
+         by=File.Name]
+
+# Spot (Unneccesary here, but for completeness)
+files.dt[J("History"),
+         ':='(c("Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+              stri_match_all_regex(File.Name, 
+                                   "History_Spot_([^_]*_){4}([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][3:8] %>% as.list),
+         by=File.Name]
+
+files.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
+setkey(files.dt, RF)
+
+# Date Conversions
+files.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
+files.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
+files.dt[,Mod.ITime:=as.ITime(Mod)]
+
+# What directories are required?
+setkey(files.dt, QDate.IDt)
+rqrd.dirs.dt <- files.dt[,list(QDate.IDt=unique(QDate.IDt))]
+rqrd.dirs.dt[,Target.Dir:=stri_paste(rep(base.dir, .N),
+                                     strftime(QDate.IDt, "%Y"),
+                                     strftime(QDate.IDt, "%m"),
+                                     strftime(QDate.IDt, "%Y_%m_%d"),
+                                     sep="/")]
+
+# Create any required directories
+create.miss.dir.f <- . %>% {if(!file.exists(.)) dir.create(., recursive=T) else TRUE}
+rqrd.dirs.dt[,create.miss.dir.f(Target.Dir), by=Target.Dir]
+
+# Join Target Dir
+setkey(files.dt, QDate.IDt)
+setkey(rqrd.dirs.dt, QDate.IDt)
+files.2.dt <- rqrd.dirs.dt[files.dt, nomatch=0]
+
+# Calculate Target File
+files.2.dt[,New.File.Name:=stri_paste(Type,
+                                      `Profile SC`, 
+                                      `Provider SC`, 
+                                      `TariffType SC`, 
+                                      `RunType SC`,
+                                      "", 
+                                      RF, 
+                                      strftime(QDate.IDt, "%m-%d-%Y"),
+                                      "AsOf",
+                                      strftime(Mod.IDt, "%m-%d-%Y"),
+                                      strftime(Mod.ITime, "%H%M%S"),
+                                      sep="_")]
+
+# Current files in those required directories
+curr.files.dt <- rqrd.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
+curr.files.dt[,MD5Sum:=md5sum(File.Name)]
+
+# Get set of new files as determined by MD5Sum
+setkey(files.2.dt, MD5Sum)
+setkey(curr.files.dt, MD5Sum)
+files.3.dt <- files.2.dt[!curr.files.dt]
+
+# Adhoc test of file duplication
+setkey(files.3.dt, RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+files.3.dt[,uniqueN(MD5Sum)]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt)][,list(.N, sum(V1))]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt)][,list(.N, sum(V1))]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)][,list(.N, sum(V1))]
+
+# Process Files
+proc.files.f <- function(files.sub.dt) {
+  require(stringi)
+  
+  # Copy 1 File to Target
+  copy.to.file.name <- files.sub.dt[1, file.copy(File.Name,
+                                                 stri_paste(Target.Dir, New.File.Name, sep="/"),
+                                                 overwrite=F,
+                                                 copy.date=T)]
+                                            
+  # Delete All Files from Source
+  files.sub.dt[,file.remove(File.Name)]
+}
+
+setkey(files.3.dt, MD5Sum, RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+files.3.dt[,proc.files.f(.SD), by=MD5Sum]
 
