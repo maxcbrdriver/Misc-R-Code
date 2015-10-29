@@ -11,7 +11,7 @@ cat("\014")   # Same as 'Ctrl-L', clears Console
 # ----- Library -----
 # Default library specified in Windows Environment variable R_LIBS_USER
 .libPaths()
-#.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
+.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
 #.libPaths("C://R/Libraries//RRO_3.2.1")  #
 #.libPaths("C://R/Libraries//RRO_3.2.0")  # 
 #.libPaths("C://R/Libraries//R_3.2.0")    # 
@@ -37,11 +37,12 @@ library(httr)
 set_config( config( ssl_verifypeer = 0L ) )   # Ignores the SSL check; Was once 'ssl.verifypeer'
 # For projects pulled down, insert 'sslVerify = false' into 'gitconfig' file
 #https://github.com/hadley/devtools
+#devtools::install_github("hadley/devtools")
 library(devtools)
 
 # Data.Table
 # https://github.com/Rdatatable/data.table/
-#install_github("Rdatatable/data.table", build_vignettes=FALSE)
+#devtools::install_github("Rdatatable/data.table", build_vignettes=FALSE)
 library(data.table)
 #ls("package:data.table")
 #lsf.str("package:data.table")
@@ -125,13 +126,13 @@ library(xml2)
 
 # Operation Piping
 # R magrittr (https://github.com/smbache/magrittr)
-#install_github("smbache/magrittr")
+#devtools::install_github("smbache/magrittr")
 library(magrittr)
 
 # Functional Programming Tools
 library(lambda.r)
+devtools::install_github("hadley/purrr")
 library(purrr)
-#devtools::install_github("hadley/purrr")
 
 # Parallel Computing
 library(snow)
@@ -199,6 +200,10 @@ library(GenomicRanges)
 # Rmetrics
 source("http://www.rmetrics.org/Rmetrics.R")
 install.Rmetrics()
+
+# Language Inspection
+devtools::install_github("hadley/pryr")
+library(pryr)
 
 # ----- Settings -----
 search()
