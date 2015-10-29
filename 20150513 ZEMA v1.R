@@ -433,7 +433,7 @@ b.2.dt[,RiskFactor:=NULL]
 identical(a.2.dt, b.2.dt)
 
 # ------------------------------------------------------------------------------------------------------------------------
-# File Sorting
+# File Archiving
 # ------------------------------------------------------------------------------------------------------------------------
 library(lubridate)
 library(data.table)
@@ -450,35 +450,24 @@ as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
 as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
 as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
 
+# ---------- Forwards ---------- 
 # Set Source Directory
 base.dir <- "W:/ZEMA/Forward/Archive"
 setwd(base.dir)
 
+# Get Dirs & Files
 dirs.dt <- data.table(Dirs=list.dirs())
 
-files.dt <- data.table(File.Name=list.files(pattern="*.csv", recursive=FALSE))
+files.dt <- data.table(File.Name=list.files(pattern="^ForwardQuotes.*csv$", recursive=FALSE))
 files.dt[, ':='(Mod=file.mtime(File.Name), MD5Sum=md5sum(File.Name))]
-
-# ----- Spot or Forward? -----
-files.dt[,Type:=stri_match_first_regex(File.Name, "([^/_]*)[^/]*$")[,2]]
-setkey(files.dt, Type)
 
 # File Name Decomposition
 files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
 
-# Forward
-files.dt[J("ForwardQuotes"),
-         ':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
-              stri_match_all_regex(File.Name, 
-                                   "ForwardQuotes_([^_]*)_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:11] %>% as.list),
-         by=File.Name]
-
-# Spot (Unneccesary here, but for completeness)
-files.dt[J("History"),
-         ':='(c("Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
-              stri_match_all_regex(File.Name, 
-                                   "History_Spot_([^_]*_){4}([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][3:8] %>% as.list),
-         by=File.Name]
+files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+               stri_match_all_regex(File.Name, 
+                                    "ForwardQuotes_([^_]*)_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:11] %>% as.list),
+          by=File.Name]
 
 files.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
 setkey(files.dt, RF)
@@ -507,34 +496,39 @@ setkey(rqrd.dirs.dt, QDate.IDt)
 files.2.dt <- rqrd.dirs.dt[files.dt, nomatch=0]
 
 # Calculate Target File
-files.2.dt[,New.File.Name:=stri_paste(Type,
-                                      `Profile SC`, 
-                                      `Provider SC`, 
-                                      `TariffType SC`, 
-                                      `RunType SC`,
-                                      "", 
-                                      RF, 
-                                      strftime(QDate.IDt, "%m-%d-%Y"),
-                                      "AsOf",
-                                      strftime(Mod.IDt, "%m-%d-%Y"),
-                                      strftime(Mod.ITime, "%H%M%S"),
-                                      sep="_")]
+files.2.dt[,New.File.Name:=stri_paste(stri_paste("ForwardQuotes",
+                                                 `Profile SC`, 
+                                                 `Provider SC`, 
+                                                 `TariffType SC`, 
+                                                 `RunType SC`,
+                                                 "", 
+                                                 RF, 
+                                                 strftime(QDate.IDt, "%m-%d-%Y"),
+                                                 "AsOf",
+                                                 strftime(Mod.IDt, "%m-%d-%Y"),
+                                                 strftime(Mod.ITime, "%H%M%S"),
+                                                 sep="_"),
+                                      ".csv",
+                                      sep="")]
 
 # Current files in those required directories
 curr.files.dt <- rqrd.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
 curr.files.dt[,MD5Sum:=md5sum(File.Name)]
 
-# Get set of new files as determined by MD5Sum
+# Get set of new files as determined by MD5Sum, remove duplicates
 setkey(files.2.dt, MD5Sum)
 setkey(curr.files.dt, MD5Sum)
 files.3.dt <- files.2.dt[!curr.files.dt]
 
+dup.file.del.status <- files.2.dt[curr.files.dt, file.remove(File.Name)]
+
+
 # Adhoc test of file duplication
-setkey(files.3.dt, RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+setkey(files.3.dt, RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
 files.3.dt[,uniqueN(MD5Sum)]
-files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt)][,list(.N, sum(V1))]
-files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt)][,list(.N, sum(V1))]
-files.3.dt[,uniqueN(MD5Sum), by=list(RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)][,list(.N, sum(V1))]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt)][,list(.N, sum(V1))]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt)][,list(.N, sum(V1))]
+files.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)][,list(.N, sum(V1))]
 
 # Process Files
 proc.files.f <- function(files.sub.dt) {
@@ -547,9 +541,140 @@ proc.files.f <- function(files.sub.dt) {
                                                  copy.date=T)]
                                             
   # Delete All Files from Source
+  # (Add code to do this ONLY if copy is successfull)
   files.sub.dt[,file.remove(File.Name)]
 }
 
-setkey(files.3.dt, MD5Sum, RF, Type, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
-files.3.dt[,proc.files.f(.SD), by=MD5Sum]
+setkey(files.3.dt, MD5Sum, RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+new.file.status <- files.3.dt[,proc.files.f(.SD), by=MD5Sum]
 
+# ---------- Spot ----------
+# Set Source Directory
+base.dir <- "W:/ZEMA/Spot/Archive"
+setwd(base.dir)
+
+# Get Dirs & Files
+dirs.dt <- data.table(Dirs=list.dirs())
+
+files.dt <- data.table(File.Name=list.files(pattern="^History_Spot.*csv$", recursive=FALSE))
+files.dt[, ':='(Mod=file.mtime(File.Name), MD5Sum=md5sum(File.Name))]
+
+# File Name Decomposition 
+files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
+
+files.dt[,
+          ':='(c("Profile SC","TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+               stri_match_all_regex(File.Name, 
+                                    "History_Spot_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:10] %>% as.list),
+          by=File.Name]
+
+files.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
+setkey(files.dt, RF)
+
+# Date Conversions
+files.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
+files.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
+files.dt[,Mod.ITime:=as.ITime(Mod)]
+
+# What directories are required?
+setkey(files.dt, QDate.IDt)
+rqrd.dirs.dt <- files.dt[,list(QDate.IDt=unique(QDate.IDt))]
+rqrd.dirs.dt[,Target.Dir:=stri_paste(rep(base.dir, .N),
+                                     strftime(QDate.IDt, "%Y"),
+                                     strftime(QDate.IDt, "%m"),
+                                     strftime(QDate.IDt, "%Y_%m_%d"),
+                                     sep="/")]
+
+# Create any required directories
+create.miss.dir.f <- . %>% {if(!file.exists(.)) dir.create(., recursive=T) else TRUE}
+rqrd.dirs.dt[,create.miss.dir.f(Target.Dir), by=Target.Dir]
+
+# Join Target Dir
+setkey(files.dt, QDate.IDt)
+setkey(rqrd.dirs.dt, QDate.IDt)
+files.2.dt <- rqrd.dirs.dt[files.dt, nomatch=0]
+
+# Calculate Target File
+files.2.dt[,New.File.Name:=stri_paste(stri_paste("History_Spot",
+                                                 `Profile SC`,
+                                                 `TariffType SC`,
+                                                 `RunType SC`,
+                                                 "",
+                                                 RF,
+                                                 strftime(QDate.IDt, "%m-%d-%Y"),
+                                                 "AsOf",
+                                                 strftime(Mod.IDt, "%m-%d-%Y"),
+                                                 strftime(Mod.ITime, "%H%M%S"),
+                                                 sep="_"),
+                                      ".csv",
+                                      sep="")]
+
+# Current files in those required directories
+curr.files.dt <- rqrd.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
+curr.files.dt[,MD5Sum:=md5sum(File.Name)]
+
+# Get set of new files as determined by MD5Sum, remove duplicates
+setkey(files.2.dt, MD5Sum)
+setkey(curr.files.dt, MD5Sum)
+files.3.dt <- files.2.dt[!curr.files.dt]
+
+dup.file.del.status <- files.2.dt[curr.files.dt, file.remove(File.Name)]
+
+# Adhoc test of file duplication
+setkey(files.3.dt, RF, `Profile SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+files.3.dt[,uniqueN(MD5Sum)]
+
+# Process Files
+setkey(files.3.dt, MD5Sum, RF, `Profile SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
+new.file.status <- files.3.dt[,proc.files.f(.SD), by=MD5Sum]
+
+# ------------------------------------------------------------------------------------------------------------------------
+# Missing Files
+# ------------------------------------------------------------------------------------------------------------------------
+library(lubridate)
+library(data.table)
+library(stringi)
+library(magrittr)
+library(tools)
+
+# ZEMA files have tz="US/Pacific", but we want to convert to EST
+Sys.setenv(TZ='America/New_York')
+
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
+
+as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
+as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
+
+# ---------- Forwards ---------- 
+# Set Source Directory
+ref.dir <- "W:/ZEMA/Forward/Archive/2015/09/2015_09_02"
+comp.dir <- "W:/ZEMA/Forward/Archive/2015/10/2015_10_26"
+
+# Get Files
+get.files.f <- . %>% list.files(path=., pattern="^ForwardQuotes.*csv$", recursive=FALSE) %>% 
+                     data.table() %>% 
+                     setnames(old=".", new="File.Name")
+
+files.ref.dt <- get.files.f(ref.dir)
+files.comp.dt <- get.files.f(comp.dir)
+
+files.dt <- rbindlist(list(files.ref.dt, files.comp.dt), use.names=T, idcol="Src")
+
+files.dt <- data.table(File.Name=list.files(path=c(ref.dir, comp.dir), pattern="^ForwardQuotes.*csv$", recursive=FALSE, full.names=T))
+
+# File Name Decomposition
+files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate", "MDate", "MTime"), "")]
+
+files.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate", "MDate", "MTime"), 
+               stri_match_all_regex(File.Name, 
+                                    "ForwardQuotes_([^_]*)_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})_AsOf_(\\d{2}-\\d{2}-\\d{4})_(\\d{6})")[[1]][2:13] %>% as.list),
+         by=File.Name]
+
+files.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
+setkey(files.dt, RF)
+
+# Date Conversions
+files.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
+files.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
+files.dt[,Mod.ITime:=as.ITime(Mod)]
