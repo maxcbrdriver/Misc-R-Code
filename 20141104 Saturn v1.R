@@ -194,3 +194,26 @@ lookup.dt <- data.table(PRICESET=c("MARKET", "BASIS"),
                         COMPONENT=c("WEST", "JCPL"), 
                         PRC_REC_TYPE=c("F", "F"))
 Prc.Entry.dt[lookup.dt,.N]
+
+# Missing Trades versus Power Finance
+library(data.table)
+library(magrittr)
+library(ggplot2)
+
+Strn.Miss.Trd.dt <- fread("X:/Zainet/odbs/Strn_Miss_Trds.rpt", header=T, sep = "|")
+Strn.Miss.Trd.dt[,V33:=NULL]
+Strn.Miss.Trd.dt[,':='(c("Rpt.Dt", "Trd.Dt", "Incep.Dt", "Void.Dt", "St.Dt", "End.Dt"), 
+                       lapply(.SD, as.IDate.f)), 
+                 .SDcols=c('Report Date', 'Trade Date', 'Incep Date', 'Void Date', 'Del Date Start', 'Del Date End')]
+Strn.Miss.Trd.dt[,':='(c('Report Date', 'Trade Date', 'Incep Date', 'Void Date', 'Del Date Start', 'Del Date End'), NULL)]
+
+PF.dt <- fread("C:/Temp/20150630 PF Aligne Trds v1.csv", header=T)
+PF.dt[,DMO.Dt:=as.IDate.f(`+1DMO`)]
+PF.dt[,`+1DMO`:=NULL]
+
+Strn.Miss.Trd.dt %>% setkey(TNUM)
+PF.dt %>% setkey(TNUM)
+
+PF.Strn.dt <- PF.dt[Strn.Miss.Trd.dt, list(DMO.Dt, `Energy MWh`)][,list(Energy=sum(`Energy MWh`)), keyby=year(DMO.Dt)]
+PF.Strn.dt[J(2015), MW:=Energy/4416]
+PF.Strn.dt[!J(2015), MW:=Energy/8760]
