@@ -10,18 +10,18 @@ cat("\014")   # Same as 'Ctrl-L', clears Console
 
 # ----- Library -----
 # Default library specified in Windows Environment variable R_LIBS_USER
-.libPaths()
-.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
+.libPaths() #
+#.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
 #.libPaths("C://R/Libraries//RRO_3.2.1")  #
-#.libPaths("C://R/Libraries//RRO_3.2.0")  # 
-#.libPaths("C://R/Libraries//R_3.2.0")    # 
+#.libPaths("C://R/Libraries//RRO_3.2.0")  #
+#.libPaths("C://R/Libraries//R_3.2.0")    #
 #.libPaths("C://R/Libraries//R_2.15.3")   #
 .Library
 .Library.site
 
 # ----- Rprofile -----
 # Location: etc/Rprofile.site
-# Removed the RRO default repository (located in etc\Rprofile.site) because it utilizes a specific snapshot 
+# Removed the RRO default repository (located in etc\Rprofile.site) because it utilizes a specific snapshot
 # date and therefore prevents updates to the latest version
 getOption('repos')
 
@@ -29,7 +29,7 @@ getOption('repos')
 # Github Development Packages
 # For some reason, the downloads from github produce the following SSL Certificate error. To ignore
 # this warning, setup `httr` to pass to `RCurl` a flag to ignore verification.
-#   Error in function (type, msg, asError = TRUE)  : 
+#   Error in function (type, msg, asError = TRUE)  :
 #   SSL certificate problem, verify that the CA cert is OK. Details:
 #   error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
 library(RCurl)
@@ -39,6 +39,8 @@ set_config( config( ssl_verifypeer = 0L ) )   # Ignores the SSL check; Was once 
 #https://github.com/hadley/devtools
 #devtools::install_github("hadley/devtools")
 library(devtools)
+
+
 
 # Data.Table
 # https://github.com/Rdatatable/data.table/
@@ -189,12 +191,12 @@ library(microbenchmark)
 
 # GenomicRanges
 # Run R As Administrator ...
-source("http://bioconductor.org/biocLite.R")
+source("https://bioconductor.org/biocLite.R")
 biocLite("GenomicRanges")
 library(GenomicRanges)
 
 # SVG
-#install_github("duncantl/SVGAnnotation")
+install_github("duncantl/SVGAnnotation")
 #library(SVGAnnotation)
 
 # Rmetrics
@@ -264,7 +266,7 @@ print(p.all)
 
 setkey(All.Hrly.dt, Year, Month, PKPRD_2)
 res.1 <- microbenchmark(t.1 <- All.Hrly.dt[,mean(`LMP.DA.NY-K`, na.rm = T), by=list(Year, Month, PKPRD_2)], times=1000L)
-res.2 <- microbenchmark(t.2 <- All.Hrly.dt %>% 
+res.2 <- microbenchmark(t.2 <- All.Hrly.dt %>%
           select(`LMP.DA.NY-K`, Year, Month, PKPRD_2) %>%
           group_by(Year, Month, PKPRD_2) %>%
           summarize(V1=mean(`LMP.DA.NY-K`, na.rm=T)),
@@ -307,8 +309,8 @@ dbListTables(my_db)
 t.1.dt <- data.table(a=1:10, b=LETTERS[1:10], c=ISOdate(2014, 10, 11:20, 0, tz='GMT'))
 str(t.1.dt)
 dbWriteTable(my_db, 't_1', t.1.dt)
-t.2.dt <- data.table(a=round(runif(1e6)*100,0), 
-                     b=LETTERS[sample(1:26, 1e6, T)], 
+t.2.dt <- data.table(a=round(runif(1e6)*100,0),
+                     b=LETTERS[sample(1:26, 1e6, T)],
                      c=ISOdate(2014, sample(1:12, 1e6, T), sample(1:28, 1e6, T), 0, tz='GMT'))
 setkey(t.2.dt, c)
 t.2.dt[,d:=strftime(c, "%Y-%m-%d"), by=c]
@@ -421,25 +423,25 @@ library(plotly)
 py <- plotly(username='R-Demo-Account', key='yu680v5eii')
 
 trace1 <- list(
-  x = c(1, 2, 3), 
-  y = c(4, 3, 2), 
+  x = c(1, 2, 3),
+  y = c(4, 3, 2),
   type = "scatter"
 )
 trace2 <- list(
-  x = c(20, 30, 40), 
-  y = c(30, 40, 50), 
-  xaxis = "x2", 
-  yaxis = "y2", 
+  x = c(20, 30, 40),
+  y = c(30, 40, 50),
+  xaxis = "x2",
+  yaxis = "y2",
   type = "scatter"
 )
 data <- list(trace1, trace2)
 layout <- list(
   yaxis2 = list(
-    domain = c(0.6, 0.95), 
+    domain = c(0.6, 0.95),
     anchor = "x2"
-  ), 
+  ),
   xaxis2 = list(
-    domain = c(0.6, 0.95), 
+    domain = c(0.6, 0.95),
     anchor = "y2"
   )
 )
@@ -452,7 +454,7 @@ library(R6)
 env.tree.f <- function(x) {
   par.env <- parent.env(x)
   print(attr(par.env, "name"))
-  
+
   if(!identical(par.env, emptyenv())) {
     env.tree.f(par.env)
   }
@@ -475,7 +477,7 @@ lf.dt[,`:=`(c('Run_Type', 'ProfileNameSC', 'ProviderSC', 'TariffSC', 'RunTypeSC'
             as.list(stri_split_regex(File_Name, "_|\\.")[[1]][c(1,2,3,4,5,7,8,9,10,11,12)])), by=File_Name]
 lf.dt[,`:=`('AsOf', as.IDate(stri_match_all_regex(File_Name, "(\\d{2}-\\d{2}-\\d{4})\\.csv$")[[1]][2], "%m-%d-%Y", tz='GMT')), by=File_Name]
 lf.dt %>% str
-      
+
 
 # Test GBM
 # Illustrates that the price level itself directly affects the GMaR (in this case using a single unit long position)
@@ -500,3 +502,36 @@ a <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=GMaR)) + geom_point() + geom_line(); a
 b <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=`Chg%`)) + geom_point() + geom_line() + coord_cartesian(ylim=c(-0.9, 0)); b
 c <- t.3.dt %>% ggplot(aes(x=`Prc@t0`, y=`ChgLn%`)) + geom_point() + geom_line() + coord_cartesian(ylim=c(-1, 0)); c
 
+
+
+library(data.table)
+library(magrittr)
+setwd("C:/Temp")
+
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+
+prof.dt <- fread("20151112 MF Profile v1.csv", header=T)
+
+prof.2.dt <- melt(prof.dt, id.vars = "Date", variable.name = "HE.Chr", variable.factor = F, value.name = "Prc")
+prof.2.dt[,HE:=as.numeric(HE.Chr)]
+prof.2.dt[,HE.Chr:=NULL]
+prof.2.dt[,Date.IDt:=as.IDate.mdY.1.f(Date)]
+prof.2.dt[,":="(Mnth=month(Date.IDt), 
+                WkDay=(wday(Date.IDt)+5)%%7+1,
+                WeekDay=strftime(Date.IDt, "%a"))]
+prof.2.dt[,Pk:=0L]
+prof.2.dt[CJ(WkDay=c(1:5), HE=c(8:23)),Pk:=1, on=c("WkDay", "HE")]
+setorder(prof.2.dt, Date.IDt, HE)
+prof.2.dt %>% head(24)
+
+all.pk.avg.dt <- prof.2.dt[,list("All.Pk.Avg"=mean(Prc)), by=Pk]
+seas.pk.avg.dt <- prof.2.dt[,list("Seas.Pk.Avg"=mean(Prc)), by=list(Mnth, Pk)]
+wkday.seas.pk.avg.dt <- prof.2.dt[,list("Wkday.Seas.Pk.Avg"=mean(Prc)), by=list(WkDay, Mnth, Pk)]
+
+seas.pk.ratio.dt <- all.pk.avg.dt[seas.pk.avg.dt, on="Pk"]
+seas.pk.ratio.dt[,Ratio:=Seas.Pk.Avg/All.Pk.Avg]
+
+
+wkday.seas.pk.ratio.dt <- all.pk.avg.dt[wkday.seas.pk.avg.dt, on="Pk"]
+wkday.seas.pk.ratio.dt[,Ratio:=Wkday.Seas.Pk.Avg/All.Pk.Avg]
+setorder(wkday.seas.pk.ratio.dt, Mnth, WkDay, Pk)
