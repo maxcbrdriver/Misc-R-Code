@@ -675,6 +675,7 @@ ps.prcs.2.dt <- melt(ps.prcs.dt, id.vars="Date", variable.name="HE.Ch", variable
 ps.prcs.2.dt[J(-999999),list(Date,HE.Ch), on="Prc", nomatch=0]
 ps.prcs.2.dt[J(-999999),Prc:=NA, on="Prc", nomatch=0]
 
+ps.prcs.2.dt[,Date.IDt:=as.IDate(Date, "%Y-%m-%d", tz="America/New_York")]
 ps.prcs.2.dt[,HE:=as.numeric(HE.Ch)]
 ps.prcs.2.dt[,Date.Tm.Ch:= stri_paste(Date, HE.Ch, sep=" ")]
 ps.prcs.2.dt[,Date.Tm.Pct:=parse_date_time(Date.Tm.Ch, "%Y-%m-%d %H")]
@@ -710,6 +711,10 @@ pk.dt <- data.table(HE=c(1,8,24), Pk=c("Off", "On", "Off"))
 setkey(ps.prcs.5.dt, HE)
 setkey(pk.dt, HE)
 ps.prcs.6.dt <- pk.dt[ps.prcs.5.dt, roll=T]
+
+calc.ln.rtrns.f <- function(sd.dt) {
+  
+}
 
 setkey(ps.prcs.6.dt, Date.IDt, HE)
 ps.prcs.7.dt <- ps.prcs.6.dt[,by=list(Season, Pk)]
