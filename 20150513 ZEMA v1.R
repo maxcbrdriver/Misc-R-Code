@@ -433,8 +433,10 @@ b.2.dt[,RiskFactor:=NULL]
 identical(a.2.dt, b.2.dt)
 
 # ------------------------------------------------------------------------------------------------------------------------
-# File Archiving
+# ---------- File Archiving ----------
 # ------------------------------------------------------------------------------------------------------------------------
+#.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
+
 library(lubridate)
 library(data.table)
 library(stringi)
@@ -459,6 +461,11 @@ proc.files.f <- function(files.sub.dt) {
                                                  overwrite=F,
                                                  copy.date=T)]
   
+  # Make Read-only
+  files.sub.dt[1, Sys.chmod(stri_paste(Target.Dir, New.File.Name, sep="/"),
+                            mode="0000",
+                            use_umask=T)]
+  
   # Delete All Files from Source
   # (Add code to do this ONLY if copy is successfull)
   files.sub.dt[,file.remove(File.Name)]
@@ -468,8 +475,11 @@ create.miss.dir.f <- . %>% {if(!file.exists(.)) dir.create(., recursive=T) else 
 
 # ---------- Forwards ---------- 
 # Set Source Directory
-base.fwd.dir <- "W:/ZEMA/Forward/Archive"
+base.fwd.dir <- "D:/Lacima/ZEMA/Forward/Archive"
 setwd(base.fwd.dir)
+
+# Expected Forward Curve List
+crvs.fwd.exp.dt <- fread("../Forward Curves.csv", header=T)
 
 # Get Dirs & Files
 dirs.fwd.dt <- data.table(Dirs=list.dirs())
@@ -478,21 +488,29 @@ files.fwd.1.dt <- data.table(File.Name=list.files(pattern="^ForwardQuotes.*csv$"
 files.fwd.1.dt[, ':='(Mod=file.mtime(File.Name), MD5Sum=md5sum(File.Name))]
 
 # File Name Decomposition
-files.fwd.1.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
+files.fwd.1.dt[,':='(c("Curve","Profile SC", "Provider SC", "TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
 
-files.fwd.1.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+files.fwd.1.dt[,':='(c("Curve", "Profile SC", "Provider SC", "TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
                      stri_match_all_regex(File.Name, 
-                                          "ForwardQuotes_([^_]*)_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:11] %>% as.list),
-                by=File.Name]
-
-files.fwd.1.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
-setkey(files.fwd.1.dt, RF)
+                                          "ForwardQuotes_(([^_]*)_([^_]*)_([^_]*)_([^_]*)__(([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)))_(\\d{2}-\\d{2}-\\d{4})") %>%
+                       transpose %>%
+                       `[`(2:13))]
 
 # Date Conversions
 files.fwd.1.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
 files.fwd.1.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
 files.fwd.1.dt[,Mod.ITime:=as.ITime(Mod)]
 
+# Are there missing Curves?
+setkey(files.fwd.1.dt, QDate.IDt)
+crvs.fwd.miss.1.dt <- files.fwd.1.dt[J(files.fwd.1.dt[,unique(QDate.IDt)]),.SD[crvs.fwd.exp.dt, list(File.Name=File.Name, Curve=Curve), on="Curve"], by=.EACHI]
+crvs.fwd.miss.2.dt <- crvs.fwd.miss.1.dt[is.na(File.Name), Curve, by=QDate.IDt]
+crvs.fwd.miss.2.dt[, .N, by=QDate.IDt]
+crvs.fwd.miss.2.dt[J(files.fwd.1.dt[,max(QDate.IDt)]), Curve, on="QDate.IDt"]
+
+# Are there extra Curves?
+files.fwd.1.dt[!crvs.fwd.exp.dt, File.Name, on="Curve"]
+  
 # What directories are required?
 setkey(files.fwd.1.dt, QDate.IDt)
 rqrd.fwd.dirs.dt <- files.fwd.1.dt[,list(QDate.IDt=unique(QDate.IDt))]
@@ -526,16 +544,35 @@ files.fwd.2.dt[,New.File.Name:=stri_paste(stri_paste("ForwardQuotes",
                                           ".csv",
                                           sep="")]
 
-# Current files in those required directories
-curr.fwd.files.dt <- rqrd.fwd.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
-curr.fwd.files.dt[,MD5Sum:=md5sum(File.Name)]
+# Current files in those required directories (limited to most recent versions)
+files.curr.fwd.1.dt <- rqrd.fwd.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
+files.curr.fwd.1.dt[,MD5Sum:=md5sum(File.Name)]
 
-# Get set of new files as determined by MD5Sum, remove duplicates
-setkey(files.fwd.2.dt, MD5Sum)
-setkey(curr.fwd.files.dt, MD5Sum)
-files.fwd.3.dt <- files.fwd.2.dt[!curr.fwd.files.dt]
+if(files.curr.fwd.1.dt[,.N]!=0) {
 
-dup.fwd.file.del.status <- files.fwd.2.dt[curr.fwd.files.dt, file.remove(File.Name)]
+  files.curr.fwd.1.dt[,':='(c("Curve", "QDate", "Mod.Date", "Mod.Time.ch"),
+                            transpose(stri_match_all_regex(File.Name,
+                                                           "(ForwardQuotes_.*?)_(\\d{2}-\\d{2}-\\d{4})_AsOf_(\\d{2}-\\d{2}-\\d{4})_(\\d{6})\\.csv"))[2:5])]
+
+  files.curr.fwd.1.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate), by=QDate]
+  files.curr.fwd.1.dt[,Mod.IDt:=as.IDate.mdY.2.f(Mod.Date), by=Mod.Date]
+  files.curr.fwd.1.dt[,Mod.Time:=as.numeric(Mod.Time.ch)]
+  files.curr.fwd.1.dt[,':='(QDate=NULL, Mod.Date=NULL, Mod.Time.ch=NULL)]
+
+  setorderv(files.curr.fwd.1.dt, c("Curve", "QDate.IDt", "Mod.IDt", "Mod.Time"), c(1, 1, -1, -1))
+  files.curr.fwd.2.dt <- files.curr.fwd.1.dt[,list(File.Name=File.Name[1], MD5Sum=MD5Sum[1]), by=list(Curve, QDate.IDt)]
+  
+  # Get set of new files as determined by MD5Sum, remove duplicates
+  setkey(files.fwd.2.dt, MD5Sum)
+  setkey(files.curr.fwd.2.dt, MD5Sum)
+  files.fwd.3.dt <- files.fwd.2.dt[!files.curr.fwd.2.dt]
+  
+  dup.fwd.file.del.status <- files.fwd.2.dt[files.curr.fwd.2.dt, file.remove(File.Name)]
+  
+} else {
+  #files.curr.fwd.2.dt <- copy(files.curr.fwd.1.dt)
+  files.fwd.3.dt <- copy(files.fwd.2.dt)
+}
 
 # Adhoc test of file duplication
 setkey(files.fwd.3.dt, RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
@@ -550,8 +587,11 @@ new.fwd.file.status <- files.fwd.3.dt[,proc.files.f(.SD), by=MD5Sum]
 
 # ---------- Spot ----------
 # Set Source Directory
-base.sp.dir <- "W:/ZEMA/Spot/Archive"
+base.sp.dir <- "D:/Lacima/ZEMA/Spot/Archive"
 setwd(base.sp.dir)
+
+# Expected Spot Curve List
+crvs.sp.exp.dt <- fread("../Spot Curves.csv", header=T)
 
 # Get Dirs & Files
 dirs.sp.dt <- data.table(Dirs=list.dirs())
@@ -560,21 +600,28 @@ files.sp.1.dt <- data.table(File.Name=list.files(pattern="^History_Spot.*csv$", 
 files.sp.1.dt[, ':='(Mod=file.mtime(File.Name), MD5Sum=md5sum(File.Name))]
 
 # File Name Decomposition 
-files.sp.1.dt[,':='(c("Profile SC", "Provider SC", "TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
+files.sp.1.dt[,':='(c("Curve", "Profile SC", "Provider SC", "TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), "")]
 
-files.sp.1.dt[,
-               ':='(c("Profile SC","TariffType SC", "RunType SC", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
+files.sp.1.dt[,':='(c("Curve", "Profile SC","TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate"), 
                     stri_match_all_regex(File.Name, 
-                                         "History_Spot_([^_]*)_([^_]*)_([^_]*)__([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)_(\\d{2}-\\d{2}-\\d{4})")[[1]][2:10] %>% as.list),
-               by=File.Name]
-
-files.sp.1.dt[,RF:=stri_paste(Cmmdty, Spot, Model, Basis, Loc, sep="_")]
-setkey(files.sp.1.dt, RF)
+                                         "History_Spot_(([^_]*)_([^_]*)_([^_]*)__(([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)))_(\\d{2}-\\d{2}-\\d{4})") %>%
+                      transpose %>%
+                      `[`(2:12))]
 
 # Date Conversions
 files.sp.1.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
 files.sp.1.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
 files.sp.1.dt[,Mod.ITime:=as.ITime(Mod)]
+
+# Are we missing Curves?
+setkey(files.sp.1.dt, QDate.IDt)
+crvs.sp.miss.1.dt <- files.sp.1.dt[J(files.sp.1.dt[,unique(QDate.IDt)]),.SD[crvs.sp.exp.dt, list(File.Name=File.Name, Curve=Curve), on="Curve"], by=.EACHI]
+crvs.sp.miss.2.dt <- crvs.sp.miss.1.dt[is.na(File.Name), Curve, by=QDate.IDt]
+crvs.sp.miss.2.dt[, .N, by=QDate.IDt]
+crvs.sp.miss.2.dt[J(files.sp.1.dt[,max(QDate.IDt)]), Curve, on="QDate.IDt"]
+
+# Are there any extra Curves?
+files.sp.1.dt[!crvs.sp.exp.dt, File.Name, on="Curve"]
 
 # What directories are required?
 setkey(files.sp.1.dt, QDate.IDt)
@@ -609,15 +656,38 @@ files.sp.2.dt[,New.File.Name:=stri_paste(stri_paste("History_Spot",
                                          sep="")]
 
 # Current files in those required directories
-curr.sp.files.dt <- rqrd.sp.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
-curr.sp.files.dt[,MD5Sum:=md5sum(File.Name)]
+files.curr.sp.1.dt <- rqrd.sp.dirs.dt[,list(File.Name=list.files(Target.Dir, pattern="*.csv", full.names=T)), by=Target.Dir]
+files.curr.sp.1.dt[,MD5Sum:=md5sum(File.Name)]
 
-# Get set of new files as determined by MD5Sum, remove duplicates
-setkey(files.sp.2.dt, MD5Sum)
-setkey(curr.sp.files.dt, MD5Sum)
-files.sp.3.dt <- files.sp.2.dt[!curr.sp.files.dt]
+# Remove files from processing that are currently NOT unique
+if(files.curr.sp.1.dt[,.N]!=0) {
+  files.curr.sp.1.dt[,':='(c("Curve", "QDate", "Mod.Date", "Mod.Time.ch"),
+                           transpose(stri_match_all_regex(File.Name,
+                                                          "(History_Spot_.*?)_(\\d{2}-\\d{2}-\\d{4})_AsOf_(\\d{2}-\\d{2}-\\d{4})_(\\d{6})\\.csv"))[2:5])]
+  
+  files.curr.sp.1.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate), by=QDate]
+  files.curr.sp.1.dt[,Mod.IDt:=as.IDate.mdY.2.f(Mod.Date), by=Mod.Date]
+  files.curr.sp.1.dt[,Mod.Time:=as.numeric(Mod.Time.ch)]
+  files.curr.sp.1.dt[,':='(QDate=NULL, Mod.Date=NULL, Mod.Time.ch=NULL)]
 
-dup.sp.file.del.status <- files.sp.2.dt[curr.sp.files.dt, file.remove(File.Name)]
+  # There may be multiple versions of any curve in the Archive as the file gets updated.  Since we want to have the latest files accurately reflect what's in
+  # Lacima, only consider the most recent versions for purposes of determining uniqueness.
+  setorderv(files.curr.sp.1.dt, c("Curve", "QDate.IDt", "Mod.IDt", "Mod.Time"), c(1, 1, -1, -1))
+  files.curr.sp.2.dt <- files.curr.sp.1.dt[,list(File.Name=File.Name[1], MD5Sum=MD5Sum[1]), by=list(Curve, QDate.IDt)]
+  
+  # Get set of new files as determined by MD5Sum & QDate, remove duplicates
+  # (In some rare cases, e.g. IF RFs, we can actually have identical files for different reference dates)
+  setkey(files.sp.2.dt, QDate.IDt, MD5Sum)
+  setkey(files.curr.sp.2.dt, QDate.IDt, MD5Sum)
+  files.sp.3.dt <- files.sp.2.dt[!files.curr.sp.2.dt]
+  
+  dup.sp.file.del.status <- files.sp.2.dt[files.curr.sp.2.dt, file.remove(File.Name)]
+  
+} else {
+  #files.curr.sp.2.dt <- copy(files.curr.sp.1.dt)
+  #files.curr.sp.2.dt[,QDate.Idt:=as.IDate.mdY.1.f(character(0))]
+  files.sp.3.dt <- copy(files.sp.2.dt)
+}
 
 # Adhoc test of file duplication
 setkey(files.sp.3.dt, RF, `Profile SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
@@ -630,6 +700,8 @@ new.sp.file.status <- files.sp.3.dt[,proc.files.f(.SD), by=MD5Sum]
 # ------------------------------------------------------------------------------------------------------------------------
 # Missing Files
 # ------------------------------------------------------------------------------------------------------------------------
+.libPaths("C://R/Libraries//RRO_3.2.2")  # Default
+
 library(lubridate)
 library(data.table)
 library(stringi)

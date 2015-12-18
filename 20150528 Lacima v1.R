@@ -1,3 +1,5 @@
+.libPaths("C:/R/Libraries/RRO_3.2.2")
+
 library(data.table)
 library(magrittr)
 library(RODBC)
@@ -178,3 +180,37 @@ Zn.X.cast.dt <- dcast(Zn.X.dt, Sim + Date.IDt + HE ~ Zone, value.var = "Price")
 Zn.X.cast.dt[,':='('ln_Zn_J'=log(Zn_J), 'ln_Zn_K'=log(Zn_K), 'ln_JCPL'=log(JCPL))]
 Zn.X.cast.dt[,lm(Zn_K ~ Zn_J + JCPL) %>% summary]
 
+# PFE Testing
+setwd("D:/Lacima/Users/MRP/Lacima/Tests/20151105 PFE v1/")
+
+sim.spot.dt <- fread("Pwr_DA_SF_A_L__PJM_West_Spot_Simulation_2015-11-16T163510.csv", header=F, skip = 1)
+sim.spot.dt %>% setnames(c("Sim", "Date", "HE", "Prc"))
+sim.spot.dt[,Date.IDt:=as.IDate.1.f(Date), by=Date]
+#sim.spot.dt[,DateTime:=stri_paste(strftime(Date.IDt, "%Y%m%d"), stri_pad(HE, width=2, pad=0)) %>% as.numeric]
+setorder(sim.spot.dt, Date.IDt, HE)
+sim.spot.dt[,Idx:=1:.N, by=Sim]
+spot.p <- ggplot(sim.spot.dt[,list(SD=sd(Prc)), by=Idx], aes(x=Idx, y=SD)) + geom_point() + geom_line()
+spot.p
+
+spot.p.2 <- ggplot(sim.spot.dt[,list(SD=sd(Prc)), by=Date.IDt], aes(x=Date.IDt, y=SD)) + geom_point() + geom_line()
+spot.p.2
+
+sim.spot.dt[,range(Date.IDt)]
+
+sim.ctrct.dt <- fread("9_30_2015 - MRP_PFE_Test_1 - sim data.csv", header=T)
+sim.ctrct.dt[,lapply(.SD, mean), by=Horizon, .SDcols=c("Mark-to-Market", "Payoffs", "Unpaid Settlements")]
+sim.ctrct.dt[,lapply(.SD, sd), by=Horizon, .SDcols=c("Mark-to-Market", "Payoffs", "Unpaid Settlements")]
+sim.ctrct.dt[,':='(Ek=`Mark-to-Market`+Payoffs + `Unpaid Settlements`)]
+sim.ctrct.dt %>% setkey(Horizon)
+sim.ctrct.dt[J("11/30/2016"), `Mark-to-Market`, by=Simulation]
+
+
+
+sim.frwd.dt <- fread("Pwr_DA_MF__L__PJM_West_Forward_Simulation_2015-11-16T163507.csv", header=T)
+names(sim.frwd.dt)
+sim.frwd.dt %>% head
+setkey(sim.frwd.dt, Date, Simulation, Period)
+sim.frwd.dt[J("9/30/2015", 1,1)]
+sim.frwd.dt[J("10/1/2015"),sd(`01-Nov-15/1 to 30-Nov-15/24`), by=list(Date, Period)]
+sim.frwd.dt[,uniqueN(Date)] * 24 * 10
+sim.frwd.dt[,.N]
