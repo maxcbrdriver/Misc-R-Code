@@ -5,7 +5,7 @@ library(magrittr)
 library(RODBC)
 library(stringi)
 
-source("C:/GitHub/Misc-R-Code/Secure v1.R")
+source("C:/R/Secure v1.R")
 
 
 # Timezone
@@ -49,7 +49,7 @@ as.IDate.f <- function(dates.v, fast=T) {
 }
 
 
-lac.odbc <- odbcConnect("Lacima_Dev", uid = ps.login, pwd=ps.pwd)
+lac.odbc <- odbcConnect("Lacima_Prod", uid = ps.login, pwd=ps.pwd)
 
 lac.tbls <- sqlTables(lac.odbc)
 lac.tbls.dt <- as.data.table(lac.tbls)
@@ -73,6 +73,98 @@ lac.rset.out.dt <- sqlQuery(lac.odbc, "select * from raSetting") %>% as.data.tab
 lac.rsetv.out.dt <- sqlQuery(lac.odbc, "select * from raSettingValue") %>% as.data.table
 lac.rparam.out.dt <- sqlQuery(lac.odbc, "select * from raParameter") %>% as.data.table  # Parameter estimates
 lac.rprmset.out.dt <- sqlQuery(lac.odbc, "select * from raParameterConfiguration") %>% as.data.table  # Parameter Setting
+
+# ----- SQL Queries -----
+
+library(lubridate)
+library(data.table)
+library(stringi)
+library(magrittr)
+library(RODBC)
+library(RODBCext)
+
+# ZEMA files have tz="US/Pacific", but we want to convert to EST
+Sys.setenv(TZ='America/New_York')
+
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
+
+as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
+as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
+
+source("C:/R/Secure v1.R")
+
+lac.odbc <- odbcConnect("Lacima_Prod", uid = ps.login, pwd = ps.pwd)
+
+
+# Get Lacima Prices - Spot
+# Function: get.lac.prc.sp.f
+# Parameters:
+#   
+get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
+  require(stringi)
+  require(magrittr)
+  require(RODBC)
+  require(RODBCext)
+  require(data.table)
+
+  # -- Process Inputs
+  # Risk Factors
+  if(!is.character(RF.c)) return(data.table(NULL))
+   
+  # Start/End Dates
+  date.to.c.f <- function(date.x) {
+    if("IDate" %chin% class(date.x)) {
+      date.c <- strftime(date.x, "%m/%d/%Y")
+    } else {
+      date.c <- date.x
+    }
+  }
+  
+  date.l <- list(dateSt.x, dateEnd.x)
+  sapply(date.l, date.to.c.f)
+  
+  
+  # Generate SQL Query
+  select.c <- stri_paste("SELECT ",
+                         "RF.RiskFactorName As RF, ",
+                         "HistData.HistoricalDate As QDate, ",
+                         "HistData.Period As HE, ",
+                         "HistData.DataValue As Price ",
+                         sep="")
+  
+  from.c <- stri_paste("FROM ",
+                       "[lacima].[dbo].[raHistoricalData] HistData ",
+                       sep=" ")
+  
+  
+  inner.join.c <- stri_paste("INNER JOIN [lacima].[dbo].[raRiskFactor] RF ",
+                              "ON HistData.raRiskFactorID = RF.raRiskFactorID ",
+                             sep=" ")
+
+  where.c <- stri_paste("WHERE ", 
+                        "RF.RiskFactorName In ('", stri_paste(RFs.c, collapse="', '"), "') And ",
+                        "HistData.HistoricalDate >= '", strftime(dateSt.IDt, "%m/%d/%Y"), "' And ",
+                        "HistData.HistoricalDate < '", strftime(dateEnd.IDt, "%m/%d/%Y"),"'",
+                        sep="")
+    
+  order.by.c <- stri_paste("ORDER BY ",
+                           "RF.RiskFactorName, ",
+                           "HistData.HistoricalDate, ",
+                           "HistData.Period ", 
+                           sep= "")
+  
+  sql.c <- stri_paste(select.c, from.c, inner.join.c, where.c, order.by.c, sep="")
+  
+  # Query the DB
+  sqlQuery(lac.odbc, sql.c)
+  
+}
+
+my.sql <- get.lac.prc.sp.f(c("Pwr_DA_MF__L__PJM_West", "Gas_GD_MF__L_GDD_Hub_HH"), as.IDate.1.f("12/1/2015"), as.IDate.1.f("1/1/2016"))
+rslts <- sqlQuery(lac.odbc, my.sql)
+rslts.dt <- as.data.table(rslts)
+rslts.dt %>% str
 
 
 
