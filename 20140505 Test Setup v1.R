@@ -57,6 +57,7 @@ library(fasttime)   # fastPOSIXct assumes an input format of "%Y/%m/%d %H:%M/%S"
 library(reshape2)
 
 # Graphics
+#devtools::install_github("hadley/ggplot2")
 library(ggplot2)
 library(gridExtra)
 # R Shiny (https://github.com/rstudio/shiny)
@@ -87,6 +88,8 @@ library(igraph)
 devtools::install_bitbucket("kayontoga/rattle")
 # Slidify
 devtools::install_github("ramnathv/slidify")
+# ggtree
+devtools::install_github("GuangchuangYu/ggtree")
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
