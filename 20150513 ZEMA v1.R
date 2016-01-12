@@ -473,6 +473,27 @@ proc.files.f <- function(files.sub.dt) {
 
 create.miss.dir.f <- . %>% {if(!file.exists(.)) dir.create(., recursive=T) else TRUE}
 
+#proc.2.files.f <- function(files.sub.dt) {
+#  my.sd.dt <- copy(files.sub.dt)
+#  
+#  if(my.sd.dt[,.N]>1) {
+#    Copy.From <- my.sd.dt[1,stri_paste(Target.Dir, New.File.Name, sep="/")]
+#    my.sd.dt[,Copy.To:=stri_paste(Target.Dir, New.File.Name, sep="/")]
+#    my.sd.dt[2:.N, Sys.chmod(stri_paste(Target.Dir, New.File.Name, sep="/"),
+#                                                       mode="0777"), by=New.File.Name]
+#    my.sd.dt[2:.N,file.remove(Copy.To), by=New.File.Name]
+#    my.sd.dt[2:.N, file.copy(Copy.From, Copy.To, overwrite=F, copy.date = T), by=New.File.Name]
+#    my.sd.dt[2:.N, Sys.chmod(stri_paste(Target.Dir, New.File.Name, sep="/"),
+#                             mode="0777"), by=New.File.Name]
+#    
+#    my.sd.dt[2:.N, Sys.setFileTime(Copy.To, Mod), by=New.File.Name]
+#    my.sd.dt[2:.N, Sys.chmod(stri_paste(Target.Dir, New.File.Name, sep="/"),
+#                              mode="0000",
+#                              use_umask=T), by=New.File.Name]
+#  }
+#}
+
+
 # ---------- Forwards ---------- 
 # Set Source Directory
 base.fwd.dir <- "D:/Lacima/ZEMA/Forward/Archive"
@@ -695,7 +716,8 @@ files.sp.3.dt[,uniqueN(MD5Sum)]
 
 # Process files
 setkey(files.sp.3.dt, MD5Sum, RF, `Profile SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
-new.sp.file.status <- files.sp.3.dt[,proc.files.f(.SD), by=MD5Sum]
+new.sp.file.status <- files.sp.3.dt[,proc.files.f(.SD), by=list(QDate.IDt, MD5Sum)]
+
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Missing Files
@@ -749,3 +771,77 @@ setkey(files.dt, RF)
 files.dt[,QDate.IDt:=as.IDate.mdY.2.f(QDate)]
 files.dt[,Mod.IDt:=as.IDate.Ymd.2.f(Mod)]
 files.dt[,Mod.ITime:=as.ITime(Mod)]
+
+# ------------------------------------------------------------------------------------------------------------------------
+# Investigate Data Quality 
+# ------------------------------------------------------------------------------------------------------------------------
+
+library(lubridate)
+library(data.table)
+library(stringi)
+library(magrittr)
+library(ggplot2)
+
+# ZEMA files have tz="US/Pacific", but we want to convert to EST
+Sys.setenv(TZ='America/New_York')
+
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
+
+as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
+as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
+
+# ---------- Forwards ---------- 
+# Set Source Directory
+base.fwd.dir <- "D:/Lacima/ZEMA/Forward/Archive"
+setwd(base.fwd.dir)
+
+# Expected Forward Curve List
+crvs.fwd.exp.dt <- fread("../Forward Curves.csv", header=T)
+
+# Get Dirs & Files
+dirs.fwd.dt <- data.table(Dirs=list.dirs())
+files.fwd.1.dt <- data.table(File.Name=list.files(pattern="Pwr_DA_|Gas_GD_", recursive=TRUE))
+
+# File Name Decomposition
+files.fwd.1.dt[,':='(c("Curve","Profile SC", "Provider SC", "TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate", "MDate", "MTime"), "")]
+
+files.fwd.1.dt[,':='(c("Curve", "Profile SC", "Provider SC", "TariffType SC", "RunType SC", "RF", "Cmmdty", "Spot", "Model", "Basis", "Loc", "QDate", "MDate", "MTime"), 
+                     stri_match_all_regex(File.Name, 
+                                          "ForwardQuotes_(([^_]*)_([^_]*)_([^_]*)_([^_]*)__(([^_]*)_([^_]*)_([^_]*_[^_]*_[^_]*)_([^_]*)_(.*?)))_(\\d{2}-\\d{2}-\\d{4})_AsOf_(\\d{2}-\\d{2}-\\d{4})_(\\d{6})") %>%
+                       transpose %>%
+                       `[`(2:15))]
+
+# Convert Dates & Times
+files.fwd.1.dt[,":="(c("QDate.IDt", "MDate.IDt", "MTime.n"), list(as.IDate.mdY.2.f(QDate), as.IDate.mdY.2.f(MDate), as.numeric(MTime)))]
+files.fwd.1.dt[,":="(c("QDate", "MDate", "MTime"), NULL)]
+
+# Read Files
+setkey(files.fwd.1.dt, Curve, QDate.IDt, MDate.IDt, MTime.n)
+data.fwd.1.dt <- files.fwd.1.dt[,fread(File.Name[.N], header = T, colClasses = c(rep("character",7), "numeric")),by=list(Curve, QDate.IDt)]
+
+# Convert Dates
+data.fwd.1.dt[,":="(c("StDate.IDt", "EndDate.IDt"), lapply(list(StartDate, EndDate), as.IDate.mdY.1.f))]
+data.fwd.1.dt[,":="(c("QuoteDate", "StartDate", "EndDate"), NULL)]
+
+# Remove NULL Data
+data.fwd.2.dt <- data.fwd.1.dt[!J(-999999),,on="QuoteValue"]
+
+# Identify files with very few points in term structure
+data.fwd.2.dt[,.N, by=list(Curve, QDate.IDt)][,sort(unique(N))]
+data.fwd.2.dt[,.N, by=list(Curve, QDate.IDt)][N<=5,.N]
+data.fwd.2.dt[,.N, by=list(Curve, QDate.IDt)][N<=5,.N, by=Curve]
+data.fwd.2.dt[,.N, by=list(Curve, QDate.IDt)][N<=5]
+
+# Graph
+p.1 <- ggplot(data.fwd.2.dt[J("Gas_GD_SF_A_L_GDD_Tenn_LA_800L", as.IDate.mdY.1.f("12/31/2015")),,on=c("RiskFactor", "QDate.IDt")],
+              aes(x=StDate.IDt, y=QuoteValue)) + geom_point() + geom_line()
+p.1
+
+p.2 <- ggplot(data.fwd.2.dt[J("Gas_GD_MF__L_GDD_Algon_CG", as.IDate.mdY.1.f("12/31/2015")),,on=c("RiskFactor", "QDate.IDt")],
+              aes(x=StDate.IDt, y=QuoteValue)) + geom_point() + geom_line()
+p.2
+
+#p.3 <- data.fwd.2.dt[J("Gas_GD_MF__L_GDD_Algon_CG", as.IDate.mdY.1.f("12/31/2015")),,on=c("RiskFactor", "QDate.IDt")] %>%
+#          ggvis(~StDate.IDt, ~QuoteValue) %>% layer_points() %>% layer_lines()
+#p.3
