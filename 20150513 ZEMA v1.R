@@ -443,6 +443,9 @@ library(stringi)
 library(magrittr)
 library(tools)
 
+options(data.table.nomatch=0)
+options(stringsAsFactors=F)
+
 # ZEMA files have tz="US/Pacific", but we want to convert to EST
 Sys.setenv(TZ='America/New_York')
 
