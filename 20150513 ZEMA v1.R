@@ -499,8 +499,8 @@ create.miss.dir.f <- . %>% {if(!file.exists(.)) dir.create(., recursive=T) else 
 
 # ---------- Forwards ---------- 
 # Set Source Directory
-#base.fwd.dir <- "D:/Lacima/ZEMA/Forward/Archive"
-base.fwd.dir <- "V:/ZEMA/Forward/Archive"
+base.fwd.dir <- "D:/Lacima/ZEMA/Forward/Archive"
+#base.fwd.dir <- "V:/ZEMA/Forward/Archive"
 setwd(base.fwd.dir)
 
 # Expected Forward Curve List
@@ -605,6 +605,7 @@ files.fwd.3.dt[,uniqueN(MD5Sum)]
 files.fwd.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt)][,list(.N, sum(V1))]
 files.fwd.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt)][,list(.N, sum(V1))]
 files.fwd.3.dt[,uniqueN(MD5Sum), by=list(RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)][,list(.N, sum(V1))]
+files.fwd.3.dt[,.N, by=QDate.IDt]
 
 # Process files
 setkey(files.fwd.3.dt, MD5Sum, RF, `Profile SC`, `Provider SC`, `TariffType SC`, `RunType SC`, QDate.IDt, Mod.IDt, Mod.ITime)
@@ -612,8 +613,8 @@ new.fwd.file.status <- files.fwd.3.dt[,proc.files.f(.SD), by=MD5Sum]
 
 # ---------- Spot ----------
 # Set Source Directory
-#base.sp.dir <- "D:/Lacima/ZEMA/Spot/Archive"
-base.sp.dir <- "V:/ZEMA/Spot/Archive"
+base.sp.dir <- "D:/Lacima/ZEMA/Spot/Archive"
+#base.sp.dir <- "V:/ZEMA/Spot/Archive"
 setwd(base.sp.dir)
 
 # Expected Spot Curve List
