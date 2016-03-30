@@ -35,12 +35,14 @@ library(httr)
 set_config( config( ssl_verifypeer = 0L ) )   # Ignores the SSL check; Was once 'ssl.verifypeer'
 # For projects pulled down, insert 'sslVerify = false' into 'gitconfig' file
 #https://github.com/hadley/devtools
-#devtools::install_github("hadley/devtools")
+#install_github("hadley/devtools")
 library(devtools)
+install_github("hadley/lineprof")
+
 
 # Data.Table
 # https://github.com/Rdatatable/data.table/
-#devtools::install_github("Rdatatable/data.table", build_vignettes=FALSE)
+#install_github("Rdatatable/data.table", build_vignettes=FALSE)
 library(data.table)
 #ls("package:data.table")
 #lsf.str("package:data.table")
@@ -50,53 +52,57 @@ library(data.table)
 # http://www.rforge.net/fasttime/files/
 #install.packages("C:/R/Downloaded/fasttime_1.0-0.tar.gz", repos = NULL, type = "source")
 library(fasttime)   # fastPOSIXct assumes an input format of "%Y/%m/%d %H:%M/%S", no way to change it
-#devtools::install_github("hadley/RcppDateTime")
+#install_github("hadley/RcppDateTime")
 
 # Data Manipulation
 #library(reshape)
 library(reshape2)
 
 # Graphics
-#devtools::install_github("hadley/ggplot2")
+#install_github("hadley/ggplot2")
 library(ggplot2)
 library(gridExtra)
 # R Shiny (https://github.com/rstudio/shiny)
-devtools::install_github("rstudio/htmltools")
-devtools::install_github("rstudio/shiny")
+install_github("rstudio/htmltools")
+install_github("bokeh/rbokeh")
+install_github("rstudio/shiny")
 #library(shiny)
 # R ggvis (https://github.com/rstudio/ggvis)
-devtools::install_github("rstudio/ggvis", build_vignettes = FALSE)
+install_github("rstudio/ggvis", build_vignettes = FALSE)
 #library(ggvis)
 # R Charts
-devtools::install_github("ramnathv/rCharts")
+install_github("ramnathv/rCharts")
 library(rCharts)
 # Google Vis
 library(googleVis)
 # Plotly
-devtools::install_github("ropensci/plotly")
+install_github("ropensci/plotly")
 library(plotly)
 # Waffle Plots
-devtools::install_github("hrbrmstr/waffle")
+install_github("hrbrmstr/waffle")
 library(waffle)
 # DiaGraphs
-devtools::install_github('rich-iannone/DiagrammeR')
+install_github('rich-iannone/DiagrammeR')
 library(DiagrammeR)
 # Network Graphs
 library(networkD3)
 library(igraph)
-# Rattle
-devtools::install_bitbucket("kayontoga/rattle")
+# Rattle (Beginners R GUI)
+#install_bitbucket("kayontoga/rattle")
 # Slidify
-devtools::install_github("ramnathv/slidify")
+install_github("ramnathv/slidify")
 # ggtree
-devtools::install_github("GuangchuangYu/ggtree")
+install_github("GuangchuangYu/ggtree")
+# Vegalite
+install_github("hrbrmstr/vegalite")
+
 
 # Documents
 #install.packages(c("shiny", "shinyFiles", "rmarkdown"))
-devtools::install_github("rstudio/shinybootstrap2")
-devtools::install_github("trestletech/shinyAce")
-devtools::install_github("ebailey78/shinyBS")
-devtools::install_github("swarm-lab/editR")
+install_github("rstudio/shinybootstrap2")
+install_github("trestletech/shinyAce")
+install_github("ebailey78/shinyBS")
+install_github("swarm-lab/editR")
 library(editR)
 
 # String Manipulation
@@ -107,11 +113,12 @@ library(stringi)  # Currently using CRAN version
 # Excel
 library(XLConnect)
 library(xlsx)
-devtools::install_github("hadley/readxl")
+install_github("hadley/readxl")
 library(readxl)
+library(openxlsx)
 
 # Misc File Reads
-devtools::install_github("hadley/readr")
+install_github("hadley/readr")
 
 # DB
 library(RODBC)
@@ -122,17 +129,17 @@ library(RSQLite.extfuns)
 library(RMySQL)
 
 # XML
-devtools::install_github("hadley/xml2")
+install_github("hadley/xml2")
 library(xml2)
 
 # Operation Piping
 # R magrittr (https://github.com/smbache/magrittr)
-#devtools::install_github("smbache/magrittr")
+#install_github("smbache/magrittr")
 library(magrittr)
 
 # Functional Programming Tools
 library(lambda.r)
-devtools::install_github("hadley/purrr")
+install_github("hadley/purrr")
 library(purrr)
 
 # Parallel Computing
@@ -144,7 +151,7 @@ library(RevoUtilsMath) # Intel MKL thread control available in RRO only
 getMKLthreads()
 #setMKLthreads(2)
 # Parallel Tools
-devtools::install_github("matloff/partools")
+install_github("matloff/partools")
 library(partools)
 install.packages("foreach")
 install.packages("iterators")
@@ -152,20 +159,26 @@ install.packages("doMC")
 install.packages("doParallel")
 install.packages("doSNOW")
 
-devtools::install_github("nathanvan/parallelsugar")
+install_github("nathanvan/parallelsugar")
 
 # Hadoop
-devtools::install_github("RevolutionAnalytics/RHadoop")
+install_github("RevolutionAnalytics/RHadoop")
 
 
 # Dplyr (https://github.com/hadley/dplyr)
-#devtools::install_github("hadley/lazyeval")
-#devtools::install_github("hadley/dplyr", build_vignettes=F)
+#install_github("hadley/lazyeval")
+#install_github("hadley/dplyr", build_vignettes=F)
 library(dplyr)
+library(tidyr)
+install_github("MangoTheCat/tidyshiny")
+install_github("hadley/dtplyr")
 
 # R Pivot Table
-devtools::install_github("ramnathv/htmlwidgets")
-devtools::install_github("smartinsightsfromdata/rpivotTable")
+install_github("ramnathv/htmlwidgets")
+install_github("smartinsightsfromdata/rpivotTable")
+
+# Scheduling
+install_github("jwijffels/taskscheduleR")
 
 # Rmetrics
 #source("http://www.rmetrics.org/Rmetrics.R")
@@ -177,8 +190,8 @@ devtools::install_github("smartinsightsfromdata/rpivotTable")
 
 # Rcpp11
 # https://github.com/Rcpp11/Rcpp11
-devtools::install_github("Rcpp11/Rcpp11")
-devtools::install_github("Rcpp11/attributes")
+install_github("Rcpp11/Rcpp11")
+install_github("Rcpp11/attributes")
 #library(Rcpp11)
 #library(attributes)
 
@@ -203,12 +216,15 @@ source("http://www.rmetrics.org/Rmetrics.R")
 install.Rmetrics()
 
 # Language Inspection
-devtools::install_github("hadley/pryr")
+install_github("hadley/pryr")
 library(pryr)
+
+# Fast DF Write
+install_github("wesm/feather/R")
 
 # ----- Settings -----
 search()
-devtools::session_info()
+session_info()
 
 # Timezone
 Sys.timezone()
