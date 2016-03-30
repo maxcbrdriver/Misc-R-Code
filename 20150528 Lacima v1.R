@@ -76,26 +76,24 @@ lac.rprmset.out.dt <- sqlQuery(lac.odbc, "select * from raParameterConfiguration
 
 # ----- SQL Queries -----
 
-library(data.table)
 library(lubridate)
+library(data.table)
 library(stringi)
 library(magrittr)
 library(RODBC)
 library(RODBCext)
-library(ggplot2)
-library(moments)
 
 options(data.table.nomatch=0)
 options(stringsAsFactors=F)
 
-# 'GMT' avoids DST complications
-Sys.setenv(tz='GMT')
+# ZEMA files have tz="US/Pacific", but we want to convert to EST
+Sys.setenv(TZ='America/New_York')
 
-as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y")
-as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y")
+as.IDate.mdY.1.f <- . %>% as.IDate(., "%m/%d/%Y", tz="America/New_York")
+as.IDate.mdY.2.f <- . %>% as.IDate(., "%m-%d-%Y", tz="America/New_York")
 
-as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d")
-as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d")
+as.IDate.Ymd.1.f <- . %>% as.IDate(., "%Y/%m/%d", tz="America/New_York")
+as.IDate.Ymd.2.f <- . %>% as.IDate(., "%Y-%m-%d", tz="America/New_York")
 
 source("C:/R/Secure v1.R")
 
@@ -112,7 +110,6 @@ get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
   require(RODBC)
   require(RODBCext)
   require(data.table)
-  require(lubridate)
 
   # -- Process Inputs
   # Risk Factors
@@ -121,21 +118,21 @@ get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
   # Start/End Dates
   date.to.c.f <- function(date.x) {
     if("IDate" %chin% class(date.x)) {
-      date.c <- strftime(date.x, "%m/%d/%Y", tz="America/New_York")
+      date.c <- strftime(date.x, "%m/%d/%Y")
     } else {
       date.c <- date.x
     }
   }
   
   date.x.l <- list(DateSt=dateSt.x, DateEnd=dateEnd.x)
-  date.c.l <- lapply(date.x.l, date.to.c.f)
+  date.c.l <- lapply(date.l, date.to.c.f)
+  
   
   # Generate SQL Query
   select.c <- stri_paste("SELECT ",
                          "RF.RiskFactorName As RF, ",
                          "HistData.HistoricalDate As QDate, ",
                          "HistData.Period As HE, ",
-                         "Hldy.Description As Holiday, ",
                          "HistData.DataValue As Price ",
                          sep="")
   
@@ -147,11 +144,6 @@ get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
   inner.join.c <- stri_paste("INNER JOIN [lacima].[dbo].[raRiskFactor] RF ",
                               "ON HistData.raRiskFactorID = RF.raRiskFactorID ",
                              sep=" ")
-  
-  left.outer.join.c <- stri_paste("LEFT OUTER JOIN [lacima].[dbo].[raHoliday] Hldy ",
-                                    "ON HistData.raRiskFactorID = Hldy.raRiskFactorId And ",
-                                       "HistData.HistoricalDate = Hldy.HolidayDate ",
-                                  sep="")
 
   where.c <- stri_paste("WHERE ", 
                         "RF.RiskFactorName In ('", stri_paste(RF.c, collapse="', '"), "') And ",
@@ -165,92 +157,19 @@ get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
                            "HistData.Period ", 
                            sep= "")
   
-  sql.c <- stri_paste(select.c, from.c, inner.join.c, left.outer.join.c, where.c, order.by.c, sep="")
+  sql.c <- stri_paste(select.c, from.c, inner.join.c, where.c, order.by.c, sep="")
   
   # Query the DB
-  sql.rslt.dt <- sqlQuery(lac.odbc, sql.c) %>% as.data.table
-  setnames(sql.rslt.dt, "QDate", "QDate.PCDt")
+  sql.rslt <- sqlQuery(lac.odbc, sql.c)
   
-  # Add Peak Indicators
-  sql.rslt.dt[,WDay:=(wday(QDate.PCDt)+5)%%7+1] # {M-F} = 1:5; {Sat, Sun, Hldy} = 6:8
-  sql.rslt.dt[!is.na(Holiday), WDay:=8]
-  sql.rslt.dt[,Pk:=0L]
-  sql.rslt.dt[CJ(WDay=c(1:5), HE=c(8:23)),Pk:=1L, on=c("WDay", "HE")]
+  sql.rslt
   
-  # Add Date/Time
-  sql.rslt.dt[,QDate.Hr.PCDt:=QDate.PCDt+HE*60^2]
-  
-  # Add 'Quarterly Seasons Peak 2' indicators
-  qrtly.seas.pk.2.dt <- data.table(Season=c("Winter", "Spring", "Summer", "Fall", "Winter"),
-                                   QDate.2k.c=c("1/1/2000", "3/15/2000", "6/15/2000", "9/15/2000", "12/15/2000"))
-  qrtly.seas.pk.2.dt[,QDate.2k.IDt:=as.IDate.mdY.1.f(QDate.2k.c)]
-  qrtly.seas.pk.2.dt[,QDate.2k.c:=NULL]
-  
-  sql.rslt.dt[,QDate.2k.IDt:=stri_paste(month(QDate.PCDt), mday(QDate.PCDt), 2000, sep="/") %>% as.IDate.mdY.1.f]
-  
-  setkey(sql.rslt.dt, QDate.2k.IDt)
-  setkey(qrtly.seas.pk.2.dt, QDate.2k.IDt)
-  sql.rslt.2.dt <- qrtly.seas.pk.2.dt[sql.rslt.dt, roll=T]
-  sql.rslt.2.dt[,QDate.2k.IDt:=NULL]
-  
-  # Return
-  setcolorder(sql.rslt.2.dt, neworder = c("RF", "QDate.PCDt", "QDate.Hr.PCDt", "WDay", "HE", "Pk", "Holiday", "Season", "Price"))
-  sql.rslt.2.dt
 }
 
-# -- PS Basis Analysis --
-# Get Spot Prices
-lac.prc.sp.dt <- get.lac.prc.sp.f(lac.odbc, c("Pwr_DA_SF_A_N_Basis_PJM_PSEG"), as.IDate.mdY.1.f("1/1/2010"), as.IDate.mdY.1.f("12/31/2015"))
-lac.prc.sp.dt %>% str
-
-# Price range and percentiles
-lac.prc.sp.dt[,range(Price)]
-perc.v <- c(0,0.25, 0.5,1,2,5,95,98,99,99.5, 99.75, 100)
-setkey(lac.prc.sp.dt, RF, QDate.Hr.PCDt)
-lac.prc.sp.dt[,lapply(perc.v, function(x) sort(Price)[floor(x/100*.N) %>% max(1)] %>% min(.N)) %>% 
-                  set_names(stri_paste(perc.v, "%", sep="")), by=list(RF, Season, Pk)]
-
-# Test Dates
-lac.prc.sp.dt[lac.prc.sp.dt[,list(N=2:.N, Diff=QDate.Hr.PCDt[2:.N]>QDate.Hr.PCDt[1:(.N-1)])][J(FALSE),on="Diff"][,N]]
-lac.prc.sp.dt[,identical(order(QDate.Hr.PCDt), order(QDate.PCDt, HE))]
-
-# Price Density Graphs
-a <- ggplot(lac.prc.sp.dt, aes(x=Price)) + stat_ecdf() + coord_cartesian(xlim=c(50, 500), ylim=c(0.97,1)); a
-a <- ggplot(lac.prc.sp.dt, aes(x=Price)) + facet_wrap(~ Season + Pk, scales="free") + stat_ecdf(); a
-a <- ggplot(lac.prc.sp.dt, aes(x=Price)) + facet_wrap(~ Season + Pk, scales="free") + geom_density(); a
-
-# Log Returns
-setorder(lac.prc.sp.dt, RF, QDate.Hr.PCDt)
-lac.prc.adj <- lac.prc.sp.dt[,sort(Price)[floor(0.005*.N)]]
-lac.prc.sp.dt[,Ln.Rtrn:=c(0, log((Price[2:.N]+lac.prc.adj) / (Price[1:(.N-1)]+lac.prc.adj)))]
-lac.prc.sp.2.dt <- lac.prc.sp.dt[2:.N][!is.nan(Ln.Rtrn)]
-
-perc.v <- c(0,0.25, 0.5,1,2,5,95,98,99,99.5, 99.75, 100)
-setkey(lac.prc.sp.2.dt, RF, Ln.Rtrn)
-lac.prc.sp.2.dt[,lapply(perc.v, function(x) sort(Ln.Rtrn)[floor(x/100*.N) %>% max(1)] %>% min(.N)) %>% 
-                  set_names(stri_paste(perc.v, "%", sep="")), by=list(RF, Season, Pk)]
-
-
-# Ln Return Graphs
-b <- ggplot(lac.prc.sp.2.dt, aes(x=Price, y=Ln.Rtrn)) + geom_line() + geom_point(); b
-b <- ggplot(lac.prc.sp.2.dt, aes(x=Ln.Rtrn)) + geom_density() + coord_cartesian(xlim=c(-1,1)); b
-b <- ggplot(lac.prc.sp.2.dt, aes(x=Ln.Rtrn)) + facet_wrap(~ Season + Pk, scales="fixed") + geom_density() + coord_cartesian(xlim=c(-1,1)); b
-
-# Stats
-lac.prc.sp.2.dt[,lapply(c(mean, sd, skewness, kurtosis), function(x) x(Ln.Rtrn)), by=list(Season, Pk)]
-
-# Jumps?
-lac.prc.sp.2.dt[,lapply(c(0:10), function(x) sum(abs(Ln.Rtrn) >(x*sd(Ln.Rtrn)))) %>% set_names(0:10), by=list(Season, Pk)]
-lac.prc.sp.2.dt[,lapply(c(0:10), function(x) (100*(sum(abs(Ln.Rtrn) >(x*sd(Ln.Rtrn)))/.N - 2*(1-pnorm(x))))) %>% set_names(0:10), by=list(Season, Pk)]
-
-
-
-
-lac.prc.sp.dt %>% setkey(QDate)
-lac.prc.sp.dt[,Prc.Adj:=Price+15]
-lac.prc.sp.dt[,Ln.Rtrn:=c(0,log(Price[2:.N]/Price[1:(.N-1)]))]
-
-
+my.sql <- get.lac.prc.sp.f(lac.odbc, c("Pwr_DA_MF__L__PJM_West", "Gas_GD_MF__L_GDD_Hub_HH"), as.IDate.mdY.1.f("12/1/2015"), as.IDate.mdY.1.f("1/1/2016"))
+rslts <- sqlQuery(lac.odbc, my.sql)
+rslts.dt <- as.data.table(rslts)
+rslts.dt %>% str
 
 
 
@@ -392,52 +311,3 @@ sim.frwd.dt[J("9/30/2015", 1,1)]
 sim.frwd.dt[J("10/1/2015"),sd(`01-Nov-15/1 to 30-Nov-15/24`), by=list(Date, Period)]
 sim.frwd.dt[,uniqueN(Date)] * 24 * 10
 sim.frwd.dt[,.N]
-
-
-## ----- Read in T:\ Lacima Files
-library(data.table)
-library(magrittr)
-
-setwd("T:/")
-lac.trds.new.dt <- fread("LAC_TRADES_NEW.rpt", sep = "|", header=T)
-lac.trds.new.dt %>% str
-
-
-## ----- Get EaR Output
-library(data.table)
-library(RODBC)
-library(magrittr)
-library(stringi)
-
-source("C:/R/Secure v1.R")
-
-sql.qry <- stri_paste("Select rvEaR.raEarningsAtRiskID, rvEaROutput.BucketStartDate, ",
-                      "rvEaROutput.BucketEndDate, rvEaROutput.OutputTypeName, rvEaROutput.Percentile, ",
-                      "rvEaROutput.EarValue, rvEaROutput.DistributionProperty, ",
-                      "rvEaROutput.ContractBucketType, rvEaROutput.ContractBucketValue, ",
-                      "rvEaROutput.IntradaySplit, rvEaROutput.AggregationTypeDecription ",
-                      "From rvEaR Inner Join ",
-                      "rvEaROutput On rvEaR.raEarningsAtRiskID = rvEaROutput.raEarningsAtRiskID ",
-                      "Where rvEaR.raEarningsAtRiskID = 101 And rvEaROutput.BucketType = 'Monthly'",
-                      sep="")
-
-lac.odbc <- odbcConnect("Lacima_Prod", uid = ps.login, pwd=ps.pwd)
-
-sql.rslt.dt <- sqlQuery(lac.odbc, sql.qry) %>% as.data.table  # ~1/2 hour to run 
-
-sql.rslt.dt[,":="(c("TT2I", "RF"), transpose(stri_split(ContractBucketValue, fixed="\\"))), by=ContractBucketValue]
-sql.rslt.dt[,":="(c("OutputTypeName_1", "OutputTypeName_2"), transpose(stri_match_all_regex(OutputTypeName, "^([^(]+)([(]([^)]*)[)])?"))[c(2,4)]), by=OutputTypeName]
-
-sql.rslt.dt %>% str
-sql.rslt.dt[!is.na(EarValue)][EarValue!=0, transpose(list(range(EarValue))), by=list(DistributionProperty, AggregationTypeDecription, OutputTypeName_1)]
-
-sql.rslt.2.dt <- sql.rslt.dt[J("Mean", "PayoffDate", "Volume"), 
-                             .SD, #list(BucketStartDate, EarValue, IntradaySplit, TT2I, RF, OutputTypeName_2),
-                             on=c("DistributionProperty", "AggregationTypeDecription", "OutputTypeName_1")]
-sql.rslt.2.dt %>% str
-
-sql.rslt.3.dt <- sql.rslt.2.dt[!J(0),on="EarValue"]
-sql.rslt.3.dt[,.N]
-
-sql.rslt.dt[,unique(OutputTypeName_1)]
-
