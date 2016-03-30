@@ -49,7 +49,9 @@ as.IDate.f <- function(dates.v, fast=T) {
 }
 
 
+lac.odbc <- odbcConnect("Lacima_Test", uid = ps.login, pwd=ps.pwd)
 lac.odbc <- odbcConnect("Lacima_Prod", uid = ps.login, pwd=ps.pwd)
+
 
 lac.tbls <- sqlTables(lac.odbc)
 lac.tbls.dt <- as.data.table(lac.tbls)
@@ -125,7 +127,7 @@ get.lac.prc.sp.f <- function(lac.ch, RF.c, dateSt.x, dateEnd.x) {
   }
   
   date.x.l <- list(DateSt=dateSt.x, DateEnd=dateEnd.x)
-  date.c.l <- lapply(date.l, date.to.c.f)
+  date.c.l <- lapply(date.x.l, date.to.c.f)
   
   
   # Generate SQL Query
